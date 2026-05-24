@@ -1,25 +1,33 @@
 import loom from "@/assets/loom-preview.jpg";
 import { Play } from "lucide-react";
-import { useT } from "@/i18n/I18nProvider";
 
 export function LoomOffer() {
-  const t = useT();
   return (
     <section className="relative py-28">
       <div className="mx-auto max-w-7xl px-5">
         <div className="grid items-center gap-12 lg:grid-cols-2">
           <div>
-            <p className="text-xs font-medium uppercase tracking-[0.25em] text-primary">{t.loom.eyebrow}</p>
+            <p className="text-xs font-medium uppercase tracking-[0.25em] text-primary">
+              Free personalized audit
+            </p>
             <h2 className="mt-4 text-4xl font-semibold tracking-tight md:text-5xl">
-              {t.loom.title1}<span className="text-gradient-primary">{t.loom.title2}</span>{t.loom.title3}
+              We'll personally record a <span className="text-gradient-primary">free video audit</span> for your business.
             </h2>
-            <p className="mt-5 max-w-xl text-lg text-muted-foreground">{t.loom.desc}</p>
+            <p className="mt-5 max-w-xl text-lg text-muted-foreground">
+              We create a personalized Loom video showing exactly how your website,
+              funnel, and customer journey can be improved — with real numbers and
+              specific recommendations. No pitch. Just value.
+            </p>
 
             <ul className="mt-8 space-y-3 text-sm">
-              {t.loom.bullets.map((b) => (
-                <li key={b} className="flex items-start gap-3">
+              {[
+                "Conversion gaps audit (homepage → booking)",
+                "Speed, UX & mobile rating with fixes",
+                "Specific AI automations you should add first",
+              ].map((t) => (
+                <li key={t} className="flex items-start gap-3">
                   <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_12px] shadow-primary/60" />
-                  <span className="text-muted-foreground">{b}</span>
+                  <span className="text-muted-foreground">{t}</span>
                 </li>
               ))}
             </ul>
@@ -28,7 +36,7 @@ export function LoomOffer() {
               href="#cta"
               className="group mt-10 inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-glow transition-transform hover:scale-[1.02]"
             >
-              {t.loom.cta}
+              Request my free audit
               <span className="transition-transform group-hover:translate-x-0.5">→</span>
             </a>
           </div>
@@ -39,21 +47,24 @@ export function LoomOffer() {
               <div className="relative">
                 <img
                   src={loom}
-                  alt={t.loom.imgAlt}
+                  alt="Loom-style video audit preview"
                   className="w-full rounded-xl"
                   loading="lazy"
                   width={1280}
                   height={800}
                 />
-                <button aria-label={t.loom.playAria} className="absolute inset-0 grid place-items-center">
+                <button
+                  aria-label="Play preview"
+                  className="absolute inset-0 grid place-items-center"
+                >
                   <span className="grid h-20 w-20 place-items-center rounded-full bg-primary text-primary-foreground shadow-glow transition-transform hover:scale-110">
                     <Play className="h-7 w-7 fill-current" />
                   </span>
                 </button>
               </div>
               <div className="flex items-center justify-between px-3 py-3 text-xs text-muted-foreground">
-                <span className="font-mono">{t.loom.previewLabel}</span>
-                <span>{t.loom.previewMeta}</span>
+                <span className="font-mono">audit-yourbusiness.loom</span>
+                <span>04:32 · personalized</span>
               </div>
             </div>
           </div>
