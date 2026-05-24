@@ -1,13 +1,9 @@
 import { useEffect, useState } from "react";
-
-const links = [
-  { label: "Services", href: "#services" },
-  { label: "Process", href: "#process" },
-  { label: "Work", href: "#work" },
-  { label: "Why Us", href: "#why" },
-];
+import { useT } from "@/i18n/I18nProvider";
+import { LanguageSwitcher } from "./LanguageSwitcher";
 
 export function Nav() {
+  const t = useT();
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 16);
@@ -15,6 +11,13 @@ export function Nav() {
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  const links = [
+    { label: t.nav.services, href: "#services" },
+    { label: t.nav.process, href: "#process" },
+    { label: t.nav.work, href: "#work" },
+    { label: t.nav.why, href: "#why" },
+  ];
 
   return (
     <header
@@ -24,7 +27,7 @@ export function Nav() {
     >
       <div className="mx-auto flex max-w-7xl items-center justify-between px-5">
         <div
-          className={`flex w-full items-center justify-between rounded-full px-5 py-2.5 transition-all duration-500 ${
+          className={`flex w-full items-center justify-between gap-4 rounded-full px-5 py-2.5 transition-all duration-500 ${
             scrolled ? "glass-strong" : ""
           }`}
         >
@@ -49,13 +52,16 @@ export function Nav() {
             ))}
           </nav>
 
-          <a
-            href="#cta"
-            className="group inline-flex items-center gap-2 rounded-full bg-foreground px-4 py-2 text-sm font-medium text-background transition-all hover:bg-foreground/90"
-          >
-            Book a call
-            <span className="transition-transform group-hover:translate-x-0.5">→</span>
-          </a>
+          <div className="flex items-center gap-2">
+            <LanguageSwitcher />
+            <a
+              href="#cta"
+              className="group hidden sm:inline-flex items-center gap-2 rounded-full bg-foreground px-4 py-2 text-sm font-medium text-background transition-all hover:bg-foreground/90"
+            >
+              {t.nav.cta}
+              <span className="transition-transform group-hover:translate-x-0.5">→</span>
+            </a>
+          </div>
         </div>
       </div>
     </header>

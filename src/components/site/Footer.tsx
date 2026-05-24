@@ -1,4 +1,13 @@
+import { useT } from "@/i18n/I18nProvider";
+
 export function Footer() {
+  const t = useT();
+  const links: [string, string][] = [
+    [t.footer.links.services, "#services"],
+    [t.footer.links.process, "#process"],
+    [t.footer.links.work, "#work"],
+    [t.footer.links.why, "#why"],
+  ];
   return (
     <footer className="relative border-t border-border/60 py-14">
       <div className="mx-auto max-w-7xl px-5">
@@ -12,36 +21,22 @@ export function Footer() {
                 QoreLabs<span className="text-primary">.io</span>
               </span>
             </a>
-            <p className="mt-4 max-w-sm text-sm text-muted-foreground">
-              Modern AI-powered websites that convert visitors into customers — and
-              evolve your business into an automated operation.
-            </p>
+            <p className="mt-4 max-w-sm text-sm text-muted-foreground">{t.footer.tagline}</p>
           </div>
 
           <div>
-            <h4 className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
-              Navigate
-            </h4>
+            <h4 className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">{t.footer.navigate}</h4>
             <ul className="mt-4 space-y-2.5 text-sm">
-              {[
-                ["Services", "#services"],
-                ["Process", "#process"],
-                ["Work", "#work"],
-                ["Why us", "#why"],
-              ].map(([l, h]) => (
+              {links.map(([l, h]) => (
                 <li key={l}>
-                  <a href={h} className="text-muted-foreground transition-colors hover:text-foreground">
-                    {l}
-                  </a>
+                  <a href={h} className="text-muted-foreground transition-colors hover:text-foreground">{l}</a>
                 </li>
               ))}
             </ul>
           </div>
 
           <div>
-            <h4 className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
-              Contact
-            </h4>
+            <h4 className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">{t.footer.contact}</h4>
             <ul className="mt-4 space-y-2.5 text-sm">
               <li>
                 <a href="mailto:hello@qorelabs.io" className="text-muted-foreground transition-colors hover:text-foreground">
@@ -49,17 +44,11 @@ export function Footer() {
                 </a>
               </li>
               <li>
-                <a href="#cta" className="text-muted-foreground transition-colors hover:text-foreground">
-                  Book a call
-                </a>
+                <a href="#cta" className="text-muted-foreground transition-colors hover:text-foreground">{t.footer.bookCall}</a>
               </li>
               <li className="flex gap-4 pt-2">
                 {["X", "in", "IG"].map((s) => (
-                  <a
-                    key={s}
-                    href="#"
-                    className="grid h-9 w-9 place-items-center rounded-full glass text-xs text-muted-foreground transition-colors hover:text-foreground"
-                  >
+                  <a key={s} href="#" className="grid h-9 w-9 place-items-center rounded-full glass text-xs text-muted-foreground transition-colors hover:text-foreground">
                     {s}
                   </a>
                 ))}
@@ -69,8 +58,8 @@ export function Footer() {
         </div>
 
         <div className="mt-14 flex flex-col items-center justify-between gap-4 border-t border-border/60 pt-6 text-xs text-muted-foreground md:flex-row">
-          <span>© {new Date().getFullYear()} QoreLabs.io — All rights reserved.</span>
-          <span className="font-mono">Built with intent. Designed for ROI.</span>
+          <span>© {new Date().getFullYear()} QoreLabs.io — {t.footer.rights}</span>
+          <span className="font-mono">{t.footer.built}</span>
         </div>
       </div>
     </footer>
