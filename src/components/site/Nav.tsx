@@ -1,13 +1,9 @@
 import { useEffect, useState } from "react";
-
-const links = [
-  { label: "Services", href: "#services" },
-  { label: "Process", href: "#process" },
-  { label: "Work", href: "#work" },
-  { label: "Why Us", href: "#why" },
-];
+import { useT } from "@/i18n/I18nProvider";
+import { LanguageSwitcher } from "./LanguageSwitcher";
 
 export function Nav() {
+  const t = useT();
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 16);
@@ -38,7 +34,7 @@ export function Nav() {
           </a>
 
           <nav className="hidden items-center gap-8 md:flex">
-            {links.map((l) => (
+            {t.nav.links.map((l) => (
               <a
                 key={l.href}
                 href={l.href}
@@ -49,13 +45,16 @@ export function Nav() {
             ))}
           </nav>
 
-          <a
-            href="#cta"
-            className="group inline-flex items-center gap-2 rounded-full bg-foreground px-4 py-2 text-sm font-medium text-background transition-all hover:bg-foreground/90"
-          >
-            Book a call
-            <span className="transition-transform group-hover:translate-x-0.5">→</span>
-          </a>
+          <div className="flex items-center gap-3">
+            <LanguageSwitcher />
+            <a
+              href="#cta"
+              className="group hidden items-center gap-2 rounded-full bg-foreground px-4 py-2 text-sm font-medium text-background transition-all hover:bg-foreground/90 sm:inline-flex"
+            >
+              {t.nav.cta}
+              <span className="transition-transform group-hover:translate-x-0.5">→</span>
+            </a>
+          </div>
         </div>
       </div>
     </header>
