@@ -504,6 +504,6 @@ export const translations = {
       links: { services: "Services", process: "Process", work: "Work", why: "Why us" },
     },
   },
-} as const;
+};
 
 export type Dict = (typeof translations)["nl"];
