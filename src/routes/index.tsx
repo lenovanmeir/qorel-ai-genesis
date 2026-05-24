@@ -1,26 +1,53 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { Nav } from "@/components/site/Nav";
+import { Hero } from "@/components/site/Hero";
+import { Problem } from "@/components/site/Problem";
+import { Process } from "@/components/site/Process";
+import { LoomOffer } from "@/components/site/LoomOffer";
+import { Services } from "@/components/site/Services";
+import { CaseStudies } from "@/components/site/CaseStudies";
+import { WhyUs } from "@/components/site/WhyUs";
+import { Testimonials } from "@/components/site/Testimonials";
+import { FinalCTA } from "@/components/site/FinalCTA";
+import { Footer } from "@/components/site/Footer";
 
 export const Route = createFileRoute("/")({
-  component: Index,
+  head: () => ({
+    meta: [
+      { title: "QoreLabs.io — AI-Powered Websites That Convert & Automate" },
+      {
+        name: "description",
+        content:
+          "QoreLabs redesigns outdated websites into high-converting AI-powered systems. Get a free Loom audit and book your strategy call.",
+      },
+      { property: "og:title", content: "QoreLabs.io — AI-Powered Websites That Convert & Automate" },
+      {
+        property: "og:description",
+        content:
+          "Modern AI-powered websites that turn visitors into customers and automate your operations.",
+      },
+      { property: "og:type", content: "website" },
+      { property: "og:url", content: "/" },
+    ],
+    links: [{ rel: "canonical", href: "/" }],
+  }),
+  component: Home,
 });
 
-// IMPORTANT: Replace this placeholder. For sites with multiple pages (About, Services, Contact, etc.),
-// create separate route files (about.tsx, services.tsx, contact.tsx) — don't put all pages in this file.
-function PlaceholderIndex() {
+function Home() {
   return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
-    </div>
+    <main className="relative min-h-screen bg-background text-foreground">
+      <Nav />
+      <Hero />
+      <Problem />
+      <Process />
+      <LoomOffer />
+      <Services />
+      <CaseStudies />
+      <WhyUs />
+      <Testimonials />
+      <FinalCTA />
+      <Footer />
+    </main>
   );
-}
-
-function Index() {
-  return <PlaceholderIndex />;
 }
