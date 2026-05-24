@@ -28,7 +28,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <I18nContext.Provider value={{ lang, setLang, t: translations[lang] }}>
+    <I18nContext.Provider value={{ lang, setLang, t: translations[lang] as Dict }}>
       {children}
     </I18nContext.Provider>
   );
