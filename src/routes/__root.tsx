@@ -10,6 +10,8 @@ import {
 
 import appCss from "../styles.css?url";
 import { I18nProvider } from "@/i18n/I18nProvider";
+import { ChatWidget } from "@/components/site/ChatWidget";
+import { useRouterState } from "@tanstack/react-router";
 
 function NotFoundComponent() {
   return (
@@ -121,11 +123,14 @@ function RootShell({ children }: { children: React.ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const hideWidget = pathname.startsWith("/chat-test");
 
   return (
     <QueryClientProvider client={queryClient}>
       <I18nProvider>
         <Outlet />
+        {!hideWidget && <ChatWidget />}
       </I18nProvider>
     </QueryClientProvider>
   );
