@@ -10,6 +10,8 @@ import {
 
 import appCss from "../styles.css?url";
 import { I18nProvider } from "@/i18n/I18nProvider";
+import { ChatWidget } from "@/components/site/ChatWidget";
+import { useRouterState } from "@tanstack/react-router";
 
 function NotFoundComponent() {
   return (
