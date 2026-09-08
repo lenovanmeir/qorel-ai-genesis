@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Minus, Send, X, MessageCircle } from "lucide-react";
 
 const WEBHOOK_URL = "https://qorelabs.app.n8n.cloud/webhook/qore-website-chat";
 const CLINIC_ID = "d3110000-0000-4000-a000-000000000001";
@@ -17,6 +18,10 @@ function uid() {
   } catch {
     return Math.random().toString(36).slice(2);
   }
+}
+
+function formatTime(date: Date) {
+  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
 export function ChatWidget() {
@@ -95,55 +100,79 @@ export function ChatWidget() {
   return (
     <div className="fixed bottom-5 right-5 z-[60] flex flex-col items-end gap-3 sm:bottom-6 sm:right-6">
       {open && (
-        <div className="glass-strong flex h-[70vh] max-h-[520px] w-[calc(100vw-2.5rem)] max-w-sm flex-col overflow-hidden rounded-3xl shadow-elevated animate-fade-up">
-          <div className="flex items-center justify-between gap-3 border-b border-border bg-gradient-to-r from-primary/15 to-transparent px-4 py-3">
-            <div className="flex items-center gap-2.5">
-              <span className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-primary to-primary/40">
+        <div className="flex w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-3xl border border-border bg-background shadow-elevated animate-fade-up sm:w-[420px] sm:h-[640px] h-[calc(100vh-6rem)]">
+          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-4 py-3.5">
+            <div className="flex items-center gap-3">
+              <span className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-primary to-primary/40 shadow-sm">
                 <span className="text-sm font-bold text-primary-foreground">Q</span>
               </span>
               <div>
-                <p className="font-display text-sm font-semibold text-foreground">Qore AI Receptionist</p>
-                <p className="text-[11px] text-muted-foreground">Meestal binnen enkele seconden</p>
+                <p className="font-display text-sm font-semibold leading-tight text-foreground">Qore AI Receptionist</p>
+                <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                  Online • Antwoordt direct
+                </p>
               </div>
             </div>
-            <button
-              onClick={() => setOpen(false)}
-              aria-label="Chat sluiten"
-              className="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-            >
-              ✕
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setOpen(false)}
+                aria-label="Chat minimaliseren"
+                className="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+              >
+                <Minus className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => setOpen(false)}
+                aria-label="Chat sluiten"
+                className="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
           </div>
 
-          <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto bg-background/40 px-4 py-4">
+          <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto bg-background px-4 py-4">
             {messages.map((m) => (
               <div key={m.id} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-                <div
-                  className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${
-                    m.role === "user"
-                      ? "bg-primary text-primary-foreground"
-                      : m.role === "error"
-                      ? "border border-destructive/30 bg-destructive/10 text-destructive"
-                      : "glass text-foreground"
-                  }`}
-                >
-                  {m.text}
+                <div className="flex max-w-[85%] flex-col gap-1">
+                  <div
+                    className={`rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
+                      m.role === "user"
+                        ? "bg-primary text-primary-foreground rounded-br-md"
+                        : m.role === "error"
+                        ? "border border-destructive/30 bg-destructive/10 text-destructive rounded-bl-md"
+                        : "bg-card text-card-foreground rounded-bl-md border border-border"
+                    }`}
+                  >
+                    {m.text}
+                  </div>
+                  <span
+                    className={`text-[10px] text-muted-foreground ${
+                      m.role === "user" ? "self-end pr-1" : "self-start pl-1"
+                    }`}
+                  >
+                    {formatTime(m.timestamp)}
+                  </span>
                 </div>
               </div>
             ))}
             {isLoading && (
               <div className="flex justify-start">
-                <div className="glass rounded-2xl px-3.5 py-2.5 text-sm text-muted-foreground">
-                  <span className="inline-flex items-center gap-2">
-                    <span className="h-2 w-2 animate-pulse rounded-full bg-primary" />
-                    Aan het typen…
-                  </span>
+                <div className="flex max-w-[85%] flex-col gap-1">
+                  <div className="rounded-2xl rounded-bl-md border border-border bg-card px-4 py-2.5 text-sm text-muted-foreground">
+                    <span className="inline-flex items-center gap-2">
+                      <span className="h-2 w-2 animate-pulse rounded-full bg-primary" />
+                      Aan het typen…
+                    </span>
+                  </div>
+                  <span className="self-start pl-1 text-[10px] text-muted-foreground">{formatTime(new Date())}</span>
                 </div>
               </div>
             )}
           </div>
 
-          <div className="border-t border-border bg-card/70 px-3 py-3">
+          <div className="shrink-0 border-t border-border bg-card px-3 py-3">
             {error && (
               <div className="mb-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-[11px] text-destructive">
                 {error}
@@ -160,7 +189,7 @@ export function ChatWidget() {
                     sendMessage();
                   }
                 }}
-                placeholder="Typ je bericht…"
+                placeholder="Typ je bericht hier..."
                 disabled={isLoading}
                 className="flex-1 rounded-full border border-input bg-background px-4 py-2.5 text-sm text-foreground outline-none ring-ring transition-all placeholder:text-muted-foreground focus:border-primary focus:ring-2"
               />
@@ -170,7 +199,7 @@ export function ChatWidget() {
                 aria-label="Verstuur bericht"
                 className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                →
+                <Send className="h-4 w-4" />
               </button>
             </div>
           </div>
@@ -180,7 +209,7 @@ export function ChatWidget() {
       {!open && teaser && (
         <button
           onClick={() => setOpen(true)}
-          className="glass-strong max-w-[240px] rounded-2xl rounded-br-sm px-4 py-2.5 text-left text-sm text-foreground shadow-elevated animate-fade-up"
+          className="max-w-[260px] rounded-2xl rounded-br-sm border border-border bg-card px-4 py-2.5 text-left text-sm text-foreground shadow-elevated animate-fade-up"
         >
           {WELCOME}
         </button>
@@ -191,7 +220,7 @@ export function ChatWidget() {
         aria-label={open ? "Chat minimaliseren" : "Chat openen"}
         className="grid h-14 w-14 place-items-center rounded-full bg-gradient-to-br from-primary to-primary/70 text-primary-foreground shadow-glow transition-transform hover:scale-105"
       >
-        <span className="text-xl">{open ? "✕" : "💬"}</span>
+        {open ? <X className="h-5 w-5" /> : <MessageCircle className="h-5 w-5" />}
       </button>
     </div>
   );
