@@ -36,7 +36,7 @@ function mk(role: Message["role"], text: string, lang: Lang): Message {
 }
 
 // The opening greeting is a fixed label, so we already have it in every
-// language — seed all three so it never needs translating.
+// language - seed all three so it never needs translating.
 function welcomeMessage(): Message {
   return {
     id: "welcome",

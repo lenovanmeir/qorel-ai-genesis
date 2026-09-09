@@ -14,13 +14,13 @@ import { Footer } from "@/components/site/Footer";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "QoreLabs.io — AI-Powered Websites That Convert & Automate" },
+      { title: "QoreLabs.io: AI-Powered Websites That Convert & Automate" },
       {
         name: "description",
         content:
           "QoreLabs redesigns outdated websites into high-converting AI-powered systems. Get a free Loom audit and book your strategy call.",
       },
-      { property: "og:title", content: "QoreLabs.io — AI-Powered Websites That Convert & Automate" },
+      { property: "og:title", content: "QoreLabs.io: AI-Powered Websites That Convert & Automate" },
       {
         property: "og:description",
         content:

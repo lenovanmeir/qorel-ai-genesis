@@ -16,9 +16,9 @@ export const translations = {
       cta: "Plan een gesprek",
     },
     hero: {
-      badge: "Nu Q2 boekingen — nog 3 plekken",
+      badge: "Nu Q2 boekingen, nog 3 plekken",
       title1: "Je website verdient geld voor je ",
-      title2: "— of je verliest dagelijks klanten.",
+      title2: "of je verliest dagelijks klanten.",
       sub: "We herontwerpen verouderde websites tot conversie-gerichte AI-systemen die meer leads opleveren, processen automatiseren en je bedrijf laten schalen.",
       ctaPrimary: "Gratis AI-website audit",
       ctaSecondary: "Bekijk voorbeelden",
@@ -45,8 +45,8 @@ export const translations = {
       title1: "Een driestappenpad naar een ",
       title2: "AI-gedreven bedrijf.",
       steps: [
-        { title: "AI Website Audit", desc: "We analyseren je huidige site en leggen verloren omzet bloot — UX-gaten, conversielekken, gemiste automatiseringen." },
-        { title: "Conversie-gericht herontwerp", desc: "We bouwen een moderne site rond echt koopgedrag — niet alleen rond esthetiek." },
+        { title: "AI Website Audit", desc: "We analyseren je huidige site en leggen verloren omzet bloot, UX-gaten, conversielekken, gemiste automatiseringen." },
+        { title: "Conversie-gericht herontwerp", desc: "We bouwen een moderne site rond echt koopgedrag, niet alleen rond esthetiek." },
         { title: "AI Automatisering & Schaal", desc: "We integreren AI-systemen die handwerk wegnemen, leads 24/7 kwalificeren en je operatie laten schalen." },
       ],
     },
@@ -55,7 +55,7 @@ export const translations = {
       title1: "We nemen persoonlijk een ",
       title2: "gratis video-audit",
       title3: " op voor jouw bedrijf.",
-      sub: "We maken een persoonlijke Loom-video die exact laat zien hoe je website, funnel en klantreis beter kunnen — met cijfers en concrete aanbevelingen. Geen pitch. Pure waarde.",
+      sub: "We maken een persoonlijke Loom-video die exact laat zien hoe je website, funnel en klantreis beter kunnen, met cijfers en concrete aanbevelingen. Geen pitch. Pure waarde.",
       bullets: [
         "Conversie-audit (homepage → boeking)",
         "Snelheid, UX & mobielscore met oplossingen",
@@ -70,7 +70,7 @@ export const translations = {
       title1: "Alles wat je nodig hebt om een ",
       title2: "AI-gedreven bedrijf",
       title3: " te worden.",
-      sub: "We leveren geen losse website. We bouwen een systeem dat compound effect heeft — web, AI en automatisering als één geheel.",
+      sub: "We leveren geen losse website. We bouwen een systeem dat compound effect heeft, web, AI en automatisering als één geheel.",
       items: [
         { title: "Website Redesign", desc: "Moderne, vertrouwenwekkende sites die bezoekers omzetten in kopers." },
         { title: "Conversie Optimalisatie", desc: "Datagedreven CRO waarvan elke procent zich opstapelt." },
@@ -84,7 +84,7 @@ export const translations = {
     },
     cases: {
       eyebrow: "Geselecteerd werk",
-      title1: "Voor & na — ",
+      title1: "Voor & na, ",
       title2: "echte cijfers.",
       caseLabel: "Case study",
       before: "Voor",
@@ -136,7 +136,7 @@ export const translations = {
       items: [
         { title: "AI-first aanpak", desc: "Elke beslissing door een AI- en automatiseringsbril." },
         { title: "Maandelijkse optimalisatie", desc: "Geen ship & ghost. We compound elke maand." },
-        { title: "Schaalbare systemen", desc: "Gebouwd om mee te groeien — van 10 naar 10.000 leads/maand." },
+        { title: "Schaalbare systemen", desc: "Gebouwd om mee te groeien, van 10 naar 10.000 leads/maand." },
         { title: "Future-ready infra", desc: "Moderne stack, edge performance, AI-klaar vanaf dag één." },
         { title: "ROI-gedreven", desc: "We meten omzetimpact, geen ijdele metrics." },
         { title: "Lange-termijn partner", desc: "Een team dat je business door en door kent." },
@@ -163,7 +163,7 @@ export const translations = {
       footnote: "Gesprek van 30 min · geen pitch · audit inbegrepen",
     },
     footer: {
-      tagline: "Moderne AI-gedreven websites die bezoekers omzetten in klanten — en je bedrijf laten evolueren naar een geautomatiseerde operatie.",
+      tagline: "Moderne AI-gedreven websites die bezoekers omzetten in klanten, en je bedrijf laten evolueren naar een geautomatiseerde operatie.",
       navigate: "Navigatie",
       contact: "Contact",
       bookCall: "Plan een gesprek",
@@ -196,9 +196,9 @@ export const translations = {
       cta: "Réserver un appel",
     },
     hero: {
-      badge: "Réservations T2 — 3 places restantes",
+      badge: "Réservations T2, 3 places restantes",
       title1: "Votre site génère des revenus ",
-      title2: "— ou vous perdez des clients chaque jour.",
+      title2: "ou vous perdez des clients chaque jour.",
       sub: "Nous transformons les sites dépassés en systèmes IA orientés conversion qui génèrent plus de leads, automatisent vos opérations et font scaler votre entreprise.",
       ctaPrimary: "Audit IA gratuit",
       ctaSecondary: "Voir les transformations",
@@ -208,7 +208,7 @@ export const translations = {
       eyebrow: "Le problème",
       title1: "La plupart des sites sont ",
       title2: "cassés.",
-      sub: "Ils paraissent dépassés, chargent lentement et convertissent mal. Pire — ils n'automatisent rien. Voilà ce qui vous coûte des clients en silence.",
+      sub: "Ils paraissent dépassés, chargent lentement et convertissent mal. Pire, ils n'automatisent rien. Voilà ce qui vous coûte des clients en silence.",
       oldLabel: "Ancien site",
       newLabel: "Site QoreLabs",
       items: [
@@ -225,8 +225,8 @@ export const translations = {
       title1: "Trois étapes vers une ",
       title2: "entreprise pilotée par l'IA.",
       steps: [
-        { title: "Audit IA du site", desc: "Nous analysons votre site actuel et identifions les opportunités perdues — UX, conversions, automatisations manquées." },
-        { title: "Refonte orientée conversion", desc: "Nous redessinons votre site autour du vrai comportement d'achat — pas seulement de l'esthétique." },
+        { title: "Audit IA du site", desc: "Nous analysons votre site actuel et identifions les opportunités perdues, UX, conversions, automatisations manquées." },
+        { title: "Refonte orientée conversion", desc: "Nous redessinons votre site autour du vrai comportement d'achat, pas seulement de l'esthétique." },
         { title: "Automatisation IA & scale", desc: "Nous intégrons des systèmes IA qui réduisent le manuel, qualifient les leads 24/7 et font scaler vos opérations." },
       ],
     },
@@ -235,7 +235,7 @@ export const translations = {
       title1: "Nous enregistrons personnellement un ",
       title2: "audit vidéo gratuit",
       title3: " pour votre entreprise.",
-      sub: "Nous créons une vidéo Loom personnalisée montrant exactement comment améliorer votre site, votre tunnel et votre parcours client — avec des chiffres réels et des recommandations concrètes. Aucun pitch. Que de la valeur.",
+      sub: "Nous créons une vidéo Loom personnalisée montrant exactement comment améliorer votre site, votre tunnel et votre parcours client, avec des chiffres réels et des recommandations concrètes. Aucun pitch. Que de la valeur.",
       bullets: [
         "Audit des points de conversion (accueil → réservation)",
         "Vitesse, UX & note mobile avec correctifs",
@@ -250,7 +250,7 @@ export const translations = {
       title1: "Tout pour devenir une ",
       title2: "entreprise pilotée par l'IA.",
       title3: "",
-      sub: "Nous ne livrons pas qu'un site. Nous architecturons un système qui s'amplifie — web, IA et automatisation comme un seul ensemble.",
+      sub: "Nous ne livrons pas qu'un site. Nous architecturons un système qui s'amplifie, web, IA et automatisation comme un seul ensemble.",
       items: [
         { title: "Refonte de site", desc: "Sites modernes et inspirant confiance qui transforment en clients." },
         { title: "Optimisation de conversion", desc: "CRO data-driven dont chaque point se cumule." },
@@ -264,7 +264,7 @@ export const translations = {
     },
     cases: {
       eyebrow: "Travaux sélectionnés",
-      title1: "Avant & après — ",
+      title1: "Avant & après, ",
       title2: "vrais chiffres.",
       caseLabel: "Étude de cas",
       before: "Avant",
@@ -316,7 +316,7 @@ export const translations = {
       items: [
         { title: "Approche IA-first", desc: "Chaque décision passée au filtre IA & automatisation." },
         { title: "Optimisation mensuelle", desc: "On ne livre pas et disparaît. On compose chaque mois." },
-        { title: "Systèmes scalables", desc: "Conçus pour grandir — de 10 à 10 000 leads/mois." },
+        { title: "Systèmes scalables", desc: "Conçus pour grandir, de 10 à 10 000 leads/mois." },
         { title: "Infra prête au futur", desc: "Stack moderne, edge performance, IA-ready dès le jour 1." },
         { title: "Obsédés par le ROI", desc: "On mesure l'impact revenu, pas la vanité." },
         { title: "Partenaire long terme", desc: "Une équipe qui connaît votre business à fond." },
@@ -343,7 +343,7 @@ export const translations = {
       footnote: "Appel 30 min · sans pitch · audit personnalisé inclus",
     },
     footer: {
-      tagline: "Sites web modernes pilotés par l'IA qui transforment les visiteurs en clients — et font évoluer votre entreprise en opération automatisée.",
+      tagline: "Sites web modernes pilotés par l'IA qui transforment les visiteurs en clients, et font évoluer votre entreprise en opération automatisée.",
       navigate: "Navigation",
       contact: "Contact",
       bookCall: "Réserver un appel",
@@ -376,9 +376,9 @@ export const translations = {
       cta: "Book a call",
     },
     hero: {
-      badge: "Now booking Q2 — 3 spots left",
+      badge: "Now booking Q2, 3 spots left",
       title1: "Your website is either making you money ",
-      title2: "— or losing you customers.",
+      title2: "or losing you customers.",
       sub: "We redesign outdated websites into high-converting AI-powered systems that generate more leads, automate operations, and help your business scale.",
       ctaPrimary: "Get your free AI website audit",
       ctaSecondary: "See example transformations",
@@ -388,7 +388,7 @@ export const translations = {
       eyebrow: "The Problem",
       title1: "Most business websites are ",
       title2: "broken.",
-      sub: "They look outdated, load slowly, and convert poorly. Worse — they don't do anything automatically. Here's what's quietly costing you customers.",
+      sub: "They look outdated, load slowly, and convert poorly. Worse, they don't do anything automatically. Here's what's quietly costing you customers.",
       oldLabel: "Old website",
       newLabel: "QoreLabs website",
       items: [
@@ -405,8 +405,8 @@ export const translations = {
       title1: "A three-step path to an ",
       title2: "AI-powered business.",
       steps: [
-        { title: "AI Website Audit", desc: "We analyze your current website and identify lost revenue opportunities — UX gaps, conversion leaks, missed automations." },
-        { title: "Conversion-Focused Redesign", desc: "We redesign your site into a modern, high-converting experience built around real buying behavior — not just aesthetics." },
+        { title: "AI Website Audit", desc: "We analyze your current website and identify lost revenue opportunities, UX gaps, conversion leaks, missed automations." },
+        { title: "Conversion-Focused Redesign", desc: "We redesign your site into a modern, high-converting experience built around real buying behavior, not just aesthetics." },
         { title: "AI Automation & Scaling", desc: "We integrate AI systems and automations that reduce manual work, qualify leads 24/7, and scale your operations." },
       ],
     },
@@ -415,7 +415,7 @@ export const translations = {
       title1: "We'll personally record a ",
       title2: "free video audit",
       title3: " for your business.",
-      sub: "We create a personalized Loom video showing exactly how your website, funnel, and customer journey can be improved — with real numbers and specific recommendations. No pitch. Just value.",
+      sub: "We create a personalized Loom video showing exactly how your website, funnel, and customer journey can be improved, with real numbers and specific recommendations. No pitch. Just value.",
       bullets: [
         "Conversion gaps audit (homepage → booking)",
         "Speed, UX & mobile rating with fixes",
@@ -430,7 +430,7 @@ export const translations = {
       title1: "Everything you need to become an ",
       title2: "AI-powered company.",
       title3: "",
-      sub: "We don't just hand you a website. We architect a system that compounds — web, AI, and automation working as one.",
+      sub: "We don't just hand you a website. We architect a system that compounds, web, AI, and automation working as one.",
       items: [
         { title: "Website Redesign", desc: "Modern, high-trust sites that turn visitors into buyers." },
         { title: "Conversion Optimization", desc: "Data-driven CRO that compounds every percentage point." },
@@ -444,7 +444,7 @@ export const translations = {
     },
     cases: {
       eyebrow: "Selected work",
-      title1: "Before & after — ",
+      title1: "Before & after, ",
       title2: "real numbers.",
       caseLabel: "Case study",
       before: "Before",
@@ -496,7 +496,7 @@ export const translations = {
       items: [
         { title: "AI-first approach", desc: "Every decision evaluated through an AI & automation lens." },
         { title: "Monthly optimization", desc: "We don't ship and ghost. We compound results monthly." },
-        { title: "Scalable systems", desc: "Built to grow with you — from 10 leads/mo to 10,000." },
+        { title: "Scalable systems", desc: "Built to grow with you, from 10 leads/mo to 10,000." },
         { title: "Future-ready infra", desc: "Modern stack, edge performance, AI-ready from day one." },
         { title: "ROI obsessed", desc: "We track revenue impact, not vanity metrics." },
         { title: "Long-term partner", desc: "A team that knows your business inside and out." },
@@ -523,7 +523,7 @@ export const translations = {
       footnote: "30-min call · no pitch · personalized audit included",
     },
     footer: {
-      tagline: "Modern AI-powered websites that convert visitors into customers — and evolve your business into an automated operation.",
+      tagline: "Modern AI-powered websites that convert visitors into customers, and evolve your business into an automated operation.",
       navigate: "Navigate",
       contact: "Contact",
       bookCall: "Book a call",

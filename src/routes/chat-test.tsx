@@ -4,9 +4,9 @@ import { createFileRoute } from "@tanstack/react-router";
 export const Route = createFileRoute("/chat-test")({
   head: () => ({
     meta: [
-      { title: "Qore AI Receptionist — DEV Test" },
+      { title: "Qore AI Receptionist: DEV Test" },
       { name: "description", content: "DEV-testpagina voor de Qore AI Receptionist." },
-      { property: "og:title", content: "Qore AI Receptionist — DEV Test" },
+      { property: "og:title", content: "Qore AI Receptionist: DEV Test" },
       { property: "og:description", content: "DEV-testpagina voor de Qore AI Receptionist." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -119,7 +119,7 @@ function ChatTestPage() {
       <div className="w-full max-w-2xl overflow-hidden rounded-3xl border border-border bg-card shadow-elevated">
         <div className="border-b border-border bg-gradient-to-r from-primary/10 to-transparent px-6 py-5">
           <h1 className="font-display text-xl font-semibold tracking-tight text-foreground">
-            Qore AI Receptionist — DEV Test
+            Qore AI Receptionist: DEV Test
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             End-to-end test via n8n-webhook. Geen directe Supabase-verbinding.
