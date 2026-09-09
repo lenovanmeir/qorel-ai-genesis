@@ -12,4 +12,7 @@ export default defineConfig({
   tanstackStart: {
     server: { entry: "server" },
   },
+  // Deploy target. Nitro's "vercel" preset emits .vercel/output (Build Output API),
+  // which Vercel deploys with zero extra configuration.
+  nitro: { preset: "vercel" },
 });
