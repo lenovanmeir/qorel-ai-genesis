@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { Minus, Send, X, MessageCircle } from "lucide-react";
+import { useI18n } from "@/i18n/I18nProvider";
 
 const WEBHOOK_URL = "https://qorelabs.app.n8n.cloud/webhook/qore-website-chat";
 const CLINIC_ID = "d3110000-0000-4000-a000-000000000001";
-const WELCOME = "Hallo! 👋 Waarmee kan ik je helpen?";
 
 type Message = {
   id: string;
@@ -25,18 +25,32 @@ function formatTime(date: Date) {
 }
 
 export function ChatWidget() {
+  const { lang, t } = useI18n();
+  const c = t.chat;
+
   const [open, setOpen] = useState(false);
   const [teaser, setTeaser] = useState(false);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([
-    { id: "welcome", role: "assistant", text: WELCOME, timestamp: new Date() },
+    { id: "welcome", role: "assistant", text: c.welcome, timestamp: new Date() },
   ]);
   const conversationId = useRef<string>("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
   if (!conversationId.current) conversationId.current = uid();
+
+  // When the visitor switches language, refresh the welcome greeting so the
+  // chat opens in the chosen language. Only the untouched opening message is
+  // swapped — a conversation already in progress is left as-is.
+  useEffect(() => {
+    setMessages((prev) =>
+      prev.length === 1 && prev[0].id === "welcome"
+        ? [{ id: "welcome", role: "assistant", text: c.welcome, timestamp: prev[0].timestamp }]
+        : prev,
+    );
+  }, [lang, c.welcome]);
 
   useEffect(() => {
     const t = setTimeout(() => setTeaser(true), 3000);
@@ -66,6 +80,9 @@ export function ChatWidget() {
           clinic_id: CLINIC_ID,
           message: text,
           conversation_id: conversationId.current,
+          // Language the visitor selected on the site ("nl" | "fr" | "en").
+          // n8n can read this to reply in the same language.
+          lang,
         }),
       });
 
@@ -89,7 +106,7 @@ export function ChatWidget() {
         throw new Error(`Response heeft geen 'reply'-veld. Beschikbare velden: ${fieldList}`);
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Er is iets misgegaan bij het versturen.";
+      const message = err instanceof Error ? err.message : c.errorGeneric;
       setError(message);
       setMessages((prev) => [...prev, { id: uid(), role: "error", text: message, timestamp: new Date() }]);
     } finally {
@@ -107,24 +124,24 @@ export function ChatWidget() {
                 <span className="text-sm font-bold text-primary-foreground">Q</span>
               </span>
               <div>
-                <p className="font-display text-sm font-semibold leading-tight text-foreground">Qore AI Receptionist</p>
+                <p className="font-display text-sm font-semibold leading-tight text-foreground">{c.title}</p>
                 <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                  Online • Antwoordt direct
+                  {c.status}
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-1">
               <button
                 onClick={() => setOpen(false)}
-                aria-label="Chat minimaliseren"
+                aria-label={c.minimize}
                 className="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
               >
                 <Minus className="h-4 w-4" />
               </button>
               <button
                 onClick={() => setOpen(false)}
-                aria-label="Chat sluiten"
+                aria-label={c.close}
                 className="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
               >
                 <X className="h-4 w-4" />
@@ -163,7 +180,7 @@ export function ChatWidget() {
                   <div className="rounded-2xl rounded-bl-md border border-border bg-card px-4 py-2.5 text-sm text-muted-foreground">
                     <span className="inline-flex items-center gap-2">
                       <span className="h-2 w-2 animate-pulse rounded-full bg-primary" />
-                      Aan het typen…
+                      {c.typing}
                     </span>
                   </div>
                   <span className="self-start pl-1 text-[10px] text-muted-foreground">{formatTime(new Date())}</span>
@@ -189,14 +206,14 @@ export function ChatWidget() {
                     sendMessage();
                   }
                 }}
-                placeholder="Typ je bericht hier..."
+                placeholder={c.placeholder}
                 disabled={isLoading}
                 className="flex-1 rounded-full border border-input bg-background px-4 py-2.5 text-sm text-foreground outline-none ring-ring transition-all placeholder:text-muted-foreground focus:border-primary focus:ring-2"
               />
               <button
                 onClick={sendMessage}
                 disabled={isLoading || !input.trim()}
-                aria-label="Verstuur bericht"
+                aria-label={c.send}
                 className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Send className="h-4 w-4" />
@@ -211,13 +228,13 @@ export function ChatWidget() {
           onClick={() => setOpen(true)}
           className="max-w-[260px] rounded-2xl rounded-br-sm border border-border bg-card px-4 py-2.5 text-left text-sm text-foreground shadow-elevated animate-fade-up"
         >
-          {WELCOME}
+          {c.teaser}
         </button>
       )}
 
       <button
         onClick={() => setOpen((v) => !v)}
-        aria-label={open ? "Chat minimaliseren" : "Chat openen"}
+        aria-label={open ? c.minimize : c.open}
         className="grid h-14 w-14 place-items-center rounded-full bg-gradient-to-br from-primary to-primary/70 text-primary-foreground shadow-glow transition-transform hover:scale-105"
       >
         {open ? <X className="h-5 w-5" /> : <MessageCircle className="h-5 w-5" />}
