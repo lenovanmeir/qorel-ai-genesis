@@ -59,7 +59,10 @@ export function Footer() {
 
         <div className="mt-14 flex flex-col items-center justify-between gap-4 border-t border-border/60 pt-6 text-xs text-muted-foreground md:flex-row">
           <span>© {new Date().getFullYear()} QoreLabs.io · {t.footer.rights}</span>
-          <span className="font-mono">{t.footer.built}</span>
+          <div className="flex items-center gap-4">
+            <a href="/privacy" className="transition-colors hover:text-foreground">Privacy</a>
+            <span className="font-mono">{t.footer.built}</span>
+          </div>
         </div>
       </div>
     </footer>
