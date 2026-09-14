@@ -21,7 +21,19 @@ type Message = {
   role: "user" | "assistant" | "error";
   text: string;
   timestamp: Date;
+  // Show the clinic's choice buttons under this message (welcome, or a reply the AI didn't understand).
+  showChoices?: boolean;
 };
+
+// Choice buttons for this clinic, managed in Supabase (table chat_keuzes) and served by n8n.
+type Choice = {
+  code: string;
+  actie: string;
+  label: Record<string, string>;
+  vraag: Record<string, string>;
+};
+
+const N8N = "https://qorelabs.app.n8n.cloud/webhook";
 
 function ChatTestPage() {
   const [input, setInput] = useState("");
@@ -31,41 +43,57 @@ function ChatTestPage() {
       role: "assistant",
       text: "Hoi! Ik ben de Qore AI Receptionist (DEV-omgeving). Typ een bericht om de n8n-webhook te testen.",
       timestamp: new Date(),
+      showChoices: true,
     },
   ]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const conversationId = useRef<string | null>(null);
+  const [choices, setChoices] = useState<Choice[]>([]);
+
+  useEffect(() => {
+    fetch(`${N8N}/qore-alle-kanalen-keuzes`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data && Array.isArray(data.options)) setChoices(data.options.slice(0, 3));
+      })
+      .catch(() => {
+        // Without choices the chat still works; the visitor just types.
+      });
+  }, []);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, isLoading]);
 
-  const sendMessage = async () => {
-    const text = input.trim();
+  const sendMessage = async (choice?: Choice) => {
+    // A tapped choice shows its label as the visitor's message and asks the brain the clinic's question.
+    const text = choice ? choice.vraag.nl : input.trim();
     if (!text || isLoading) return;
 
     const userMessage: Message = {
       id: crypto.randomUUID(),
       role: "user",
-      text,
+      text: choice ? choice.label.nl : text,
       timestamp: new Date(),
     };
 
     setMessages((prev) => [...prev, userMessage]);
-    setInput("");
+    if (!choice) setInput("");
     setIsLoading(true);
     setError(null);
 
     try {
-      const response = await fetch("https://qorelabs.app.n8n.cloud/webhook/qore-alle-kanalen-chat", {
+      const response = await fetch(`${N8N}/qore-alle-kanalen-chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           clinic_id: "d3110000-0000-4000-a000-000000000001",
           message: text,
           conversation_id: conversationId.current,
+          choice: choice?.code ?? null,
+          choice_action: choice?.actie ?? null,
         }),
       });
 
@@ -87,6 +115,7 @@ function ChatTestPage() {
             role: "assistant",
             text: data.reply,
             timestamp: new Date(),
+            showChoices: data.intent === "UNKNOWN",
           },
         ]);
       } else {
@@ -136,10 +165,10 @@ function ChatTestPage() {
           ref={scrollRef}
           className="h-[420px] space-y-4 overflow-y-auto bg-background/50 px-6 py-5"
         >
-          {messages.map((m) => (
+          {messages.map((m, i) => (
             <div
               key={m.id}
-              className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
+              className={`flex flex-col ${m.role === "user" ? "items-end" : "items-start"}`}
             >
               <div
                 className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
@@ -155,6 +184,19 @@ function ChatTestPage() {
                   {m.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                 </div>
               </div>
+              {m.showChoices && i === messages.length - 1 && !isLoading && choices.length > 0 && (
+                <div className="mt-2 flex max-w-[80%] flex-wrap gap-2">
+                  {choices.map((c) => (
+                    <button
+                      key={c.code}
+                      onClick={() => sendMessage(c)}
+                      className="rounded-full border border-primary/40 bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary hover:bg-primary/10"
+                    >
+                      {c.label.nl}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
 
@@ -188,7 +230,7 @@ function ChatTestPage() {
               className="flex-1 rounded-full border border-input bg-background px-5 py-3 text-sm text-foreground outline-none ring-ring transition-all placeholder:text-muted-foreground focus:border-primary focus:ring-2"
             />
             <button
-              onClick={sendMessage}
+              onClick={() => sendMessage()}
               disabled={isLoading || !input.trim()}
               className="inline-flex items-center justify-center rounded-full bg-primary px-5 py-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
             >
