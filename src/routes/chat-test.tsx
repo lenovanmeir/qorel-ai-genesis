@@ -36,6 +36,7 @@ function ChatTestPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const conversationId = useRef<string | null>(null);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -58,12 +59,13 @@ function ChatTestPage() {
     setError(null);
 
     try {
-      const response = await fetch("https://qorelabs.app.n8n.cloud/webhook/qore-website-chat", {
+      const response = await fetch("https://qorelabs.app.n8n.cloud/webhook/qore-alle-kanalen-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           clinic_id: "d3110000-0000-4000-a000-000000000001",
           message: text,
+          conversation_id: conversationId.current,
         }),
       });
 
@@ -72,6 +74,10 @@ function ChatTestPage() {
       }
 
       const data = await response.json();
+
+      if (data && typeof data.conversation_id === "string") {
+        conversationId.current = data.conversation_id;
+      }
 
       if (data && typeof data.reply === "string") {
         setMessages((prev) => [
