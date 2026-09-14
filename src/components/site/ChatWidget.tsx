@@ -61,7 +61,6 @@ export function ChatWidget() {
   const [teaser, setTeaser] = useState(false);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [translating, setTranslating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([welcomeMessage()]);
   const conversationId = useRef<string>("");
@@ -84,7 +83,6 @@ export function ChatWidget() {
     if (pending.length === 0) return;
 
     let cancelled = false;
-    setTranslating(true);
     (async () => {
       try {
         const response = await fetch(TRANSLATE_URL, {
@@ -114,8 +112,6 @@ export function ChatWidget() {
       } catch {
         // On failure, leave messages in their original language rather than
         // blocking the chat. The visitor can keep talking normally.
-      } finally {
-        if (!cancelled) setTranslating(false);
       }
     })();
 
@@ -135,7 +131,7 @@ export function ChatWidget() {
     if (open) {
       scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
     }
-  }, [messages, isLoading, translating, open]);
+  }, [messages, isLoading, open]);
 
   const sendMessage = async () => {
     const text = input.trim();
@@ -246,13 +242,13 @@ export function ChatWidget() {
                 </div>
               </div>
             ))}
-            {(isLoading || translating) && (
+            {isLoading && (
               <div className="flex justify-start">
                 <div className="flex max-w-[85%] flex-col gap-1">
                   <div className="rounded-2xl rounded-bl-md border border-border bg-card px-4 py-2.5 text-sm text-muted-foreground">
                     <span className="inline-flex items-center gap-2">
                       <span className="h-2 w-2 animate-pulse rounded-full bg-primary" />
-                      {translating ? c.translating : c.typing}
+                      {c.typing}
                     </span>
                   </div>
                   <span className="self-start pl-1 text-[10px] text-muted-foreground">{formatTime(new Date())}</span>
