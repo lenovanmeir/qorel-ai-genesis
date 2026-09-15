@@ -3,8 +3,10 @@ import { Minus, Send, X, MessageCircle } from "lucide-react";
 import { useI18n } from "@/i18n/I18nProvider";
 import { translations, type Lang } from "@/i18n/translations";
 
-const WEBHOOK_URL = "https://qorelabs.app.n8n.cloud/webhook/qore-website-chat";
-const TRANSLATE_URL = "https://qorelabs.app.n8n.cloud/webhook/qore-translate";
+// n8n workflow "Qore AI Receptionist - Alle kanalen": same brain and choices as Instagram, Facebook and WhatsApp.
+const WEBHOOK_URL = "https://qorelabs.app.n8n.cloud/webhook/qore-alle-kanalen-chat";
+const TRANSLATE_URL = "https://qorelabs.app.n8n.cloud/webhook/qore-alle-kanalen-translate";
+const CHOICES_URL = "https://qorelabs.app.n8n.cloud/webhook/qore-alle-kanalen-keuzes";
 const CLINIC_ID = "d3110000-0000-4000-a000-000000000001";
 
 type Message = {
@@ -16,7 +18,33 @@ type Message = {
   // other languages are filled in on demand when the visitor switches.
   byLang: Partial<Record<Lang, string>>;
   timestamp: Date;
+  // Show the clinic's choices inside this message's card.
+  showChoices?: boolean;
+  // Code of the choice the visitor tapped on this card.
+  chosen?: string;
 };
+
+// A choice button for this clinic (Supabase table chat_keuzes, served by n8n).
+type Choice = {
+  code: string;
+  actie: string;
+  label: Record<Lang, string>;
+  vraag: Record<Lang, string>;
+};
+
+// Same greeting check as the n8n workflow: a bare greeting brings the choices back.
+function isGreeting(text: string) {
+  const clean = text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return /^(hallo|hello|hi|hey|hoi|hai|dag|goeiedag|goedendag|goedemorgen|goeiemorgen|goedemiddag|goeiemiddag|goedenavond|goeienavond|bonjour|bonsoir|salut|coucou|good morning|good afternoon|good evening)( daar| there| allemaal)?$/.test(
+    clean,
+  );
+}
 
 function uid() {
   try {
@@ -44,6 +72,7 @@ function welcomeMessage(): Message {
     sourceLang: "nl",
     byLang: { nl: translations.nl.chat.welcome, fr: translations.fr.chat.welcome, en: translations.en.chat.welcome },
     timestamp: new Date(),
+    showChoices: true,
   };
 }
 
@@ -63,6 +92,7 @@ export function ChatWidget() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([welcomeMessage()]);
+  const [choices, setChoices] = useState<Choice[]>([]);
   const conversationId = useRef<string>("");
   const scrollRef = useRef<HTMLDivElement>(null);
   // Tracks the language a translation pass is aiming for, so a slower response
@@ -123,6 +153,17 @@ export function ChatWidget() {
   }, [lang]);
 
   useEffect(() => {
+    fetch(CHOICES_URL)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data && Array.isArray(data.options)) setChoices(data.options.slice(0, 3));
+      })
+      .catch(() => {
+        // Without choices the chat still works; the visitor just types.
+      });
+  }, []);
+
+  useEffect(() => {
     const timer = setTimeout(() => setTeaser(true), 3000);
     return () => clearTimeout(timer);
   }, []);
@@ -133,12 +174,20 @@ export function ChatWidget() {
     }
   }, [messages, isLoading, open]);
 
-  const sendMessage = async () => {
-    const text = input.trim();
+  const sendMessage = async (choice?: Choice) => {
+    // A tapped choice shows its label as the visitor's message and asks the brain the clinic's question.
+    const text = choice ? choice.vraag[lang] || choice.vraag.nl : input.trim();
     if (!text || isLoading) return;
 
-    setMessages((prev) => [...prev, mk("user", text, lang)]);
-    setInput("");
+    const userMessage: Message = choice
+      ? { id: uid(), role: "user", sourceLang: lang, byLang: { ...choice.label }, timestamp: new Date() }
+      : mk("user", text, lang);
+    setMessages((prev) => [
+      // Mark the tapped button on the card it belongs to (always the last message).
+      ...prev.map((m, i) => (choice && i === prev.length - 1 ? { ...m, chosen: choice.code } : m)),
+      userMessage,
+    ]);
+    if (!choice) setInput("");
     setIsLoading(true);
     setError(null);
 
@@ -153,6 +202,8 @@ export function ChatWidget() {
           // Language the visitor selected on the site ("nl" | "fr" | "en").
           // n8n reads this to reply in the same language.
           lang,
+          choice: choice?.code ?? null,
+          choice_action: choice?.actie ?? null,
         }),
       });
 
@@ -167,7 +218,9 @@ export function ChatWidget() {
           conversationId.current = data.conversation_id;
         }
         // The reply comes back in the language we asked for, so tag it as such.
-        setMessages((prev) => [...prev, mk("assistant", data.reply, lang)]);
+        // Show the choices again after a bare greeting or when the AI didn't understand.
+        const showChoices = data.intent === "UNKNOWN" || (!choice && isGreeting(text));
+        setMessages((prev) => [...prev, { ...mk("assistant", data.reply, lang), showChoices }]);
       } else {
         const fields = data && typeof data === "object" ? Object.keys(data) : [];
         const fieldList = fields.length > 0 ? fields.join(", ") : "(geen velden)";
@@ -218,11 +271,13 @@ export function ChatWidget() {
           </div>
 
           <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto bg-background px-4 py-4">
-            {messages.map((m) => (
+            {messages.map((m, i) => (
               <div key={m.id} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
                 <div className="flex max-w-[85%] flex-col gap-1">
                   <div
                     className={`rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
+                      m.showChoices && choices.length > 0 ? "min-w-[250px] " : ""
+                    }${
                       m.role === "user"
                         ? "bg-primary text-primary-foreground rounded-br-md"
                         : m.role === "error"
@@ -231,6 +286,29 @@ export function ChatWidget() {
                     }`}
                   >
                     {textFor(m, lang)}
+                    {m.showChoices && choices.length > 0 && (
+                      // Text and choices in one card, stacked; only the latest card stays tappable.
+                      <div className="mt-3 flex flex-col gap-2">
+                        {choices.map((choice) => {
+                          const tappable = i === messages.length - 1 && !isLoading;
+                          const picked = m.chosen === choice.code;
+                          return (
+                            <button
+                              key={choice.code}
+                              onClick={() => sendMessage(choice)}
+                              disabled={!tappable}
+                              className={`w-full rounded-xl border px-4 py-2.5 text-center text-sm font-medium transition-colors ${
+                                picked
+                                  ? "border-primary bg-primary/15 text-foreground"
+                                  : "border-primary/30 bg-background/60 text-primary hover:border-primary hover:bg-primary/10"
+                              } disabled:cursor-default ${!tappable && !picked ? "opacity-50" : ""}`}
+                            >
+                              {choice.label[lang] || choice.label.nl}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                   <span
                     className={`text-[10px] text-muted-foreground ${
@@ -279,7 +357,7 @@ export function ChatWidget() {
                 className="flex-1 rounded-full border border-input bg-background px-4 py-2.5 text-sm text-foreground outline-none ring-ring transition-all placeholder:text-muted-foreground focus:border-primary focus:ring-2"
               />
               <button
-                onClick={sendMessage}
+                onClick={() => sendMessage()}
                 disabled={isLoading || !input.trim()}
                 aria-label={c.send}
                 className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
