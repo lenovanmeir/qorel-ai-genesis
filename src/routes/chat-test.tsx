@@ -23,6 +23,8 @@ type Message = {
   timestamp: Date;
   // Show the clinic's choice buttons under this message (welcome, or a reply the AI didn't understand).
   showChoices?: boolean;
+  // Code of the choice the visitor tapped on this message, if any.
+  chosen?: string;
 };
 
 // Choice buttons for this clinic, managed in Supabase (table chat_keuzes) and served by n8n.
@@ -79,7 +81,11 @@ function ChatTestPage() {
       timestamp: new Date(),
     };
 
-    setMessages((prev) => [...prev, userMessage]);
+    setMessages((prev) => [
+      // Mark the tapped button on the card it belongs to (always the last message).
+      ...prev.map((m, idx) => (choice && idx === prev.length - 1 ? { ...m, chosen: choice.code } : m)),
+      userMessage,
+    ]);
     if (!choice) setInput("");
     setIsLoading(true);
     setError(null);
@@ -172,6 +178,8 @@ function ChatTestPage() {
             >
               <div
                 className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+                  m.showChoices && choices.length > 0 ? "min-w-[260px] " : ""
+                }${
                   m.role === "user"
                     ? "bg-primary text-primary-foreground"
                     : m.role === "error"
@@ -180,23 +188,34 @@ function ChatTestPage() {
                 }`}
               >
                 {m.text}
+                {m.showChoices && choices.length > 0 && (
+                  // Text and choices in one card, choices stacked; only the latest card stays tappable.
+                  <div className="mt-3 flex flex-col gap-2">
+                    {choices.map((c) => {
+                      const tappable = i === messages.length - 1 && !isLoading;
+                      return (
+                        <button
+                          key={c.code}
+                          onClick={() => sendMessage(c)}
+                          disabled={!tappable}
+                          className={`w-full rounded-xl border px-4 py-2.5 text-center text-sm font-medium transition-colors ${
+                            m.chosen === c.code
+                              ? "border-primary bg-primary/15 text-foreground"
+                              : "border-primary/30 bg-background/60 text-primary hover:border-primary hover:bg-primary/10"
+                          } disabled:cursor-default disabled:hover:bg-background/60 ${
+                            !tappable && m.chosen !== c.code ? "opacity-50" : ""
+                          }`}
+                        >
+                          {c.label.nl}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
                 <div className="mt-1 text-[10px] opacity-60">
                   {m.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                 </div>
               </div>
-              {m.showChoices && i === messages.length - 1 && !isLoading && choices.length > 0 && (
-                <div className="mt-2 flex max-w-[80%] flex-wrap gap-2">
-                  {choices.map((c) => (
-                    <button
-                      key={c.code}
-                      onClick={() => sendMessage(c)}
-                      className="rounded-full border border-primary/40 bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary hover:bg-primary/10"
-                    >
-                      {c.label.nl}
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
           ))}
 
