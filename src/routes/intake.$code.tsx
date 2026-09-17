@@ -4,7 +4,7 @@ import { createFileRoute } from "@tanstack/react-router";
 export const Route = createFileRoute("/intake/$code")({
   head: () => ({
     meta: [
-      { title: "ChatAI intake | QoreLabs" },
+      { title: "QoreLabs intake" },
       { name: "description", content: "Vragenlijst voor uw AI-receptionist." },
       { name: "robots", content: "noindex, nofollow" },
     ],
@@ -37,7 +37,7 @@ type Promotie = { naam: string; van: string; tot: string; behandeling: string; a
 
 type Bedrijf = {
   naam: string; website: string; contact: string; email: string; telefoon: string;
-  instagram: string; facebook: string; whatsapp: string; goedkeurder: string; talen: string[];
+  instagram: string; facebook: string; whatsapp: string; goedkeurder: string; talen: string[]; andereTaal: string;
 };
 type Afspraken = {
   verplichteGegevens: string[]; systeem: string; gebruikVoor: string[]; agendaToegang: string;
@@ -76,7 +76,7 @@ const leegVraag = (): VraagAntwoord => ({ vraag: "", antwoord: "" });
 const leegPromotie = (): Promotie => ({ naam: "", van: "", tot: "", behandeling: "", aanbod: "", voorwaarden: "" });
 
 const leegData = (): Data => ({
-  bedrijf: { naam: "", website: "", contact: "", email: "", telefoon: "", instagram: "", facebook: "", whatsapp: "", goedkeurder: "", talen: [] },
+  bedrijf: { naam: "", website: "", contact: "", email: "", telefoon: "", instagram: "", facebook: "", whatsapp: "", goedkeurder: "", talen: [], andereTaal: "" },
   vestigingen: [leegVestiging()],
   categorieen: "",
   behandelingen: [leegBehandeling()],
@@ -279,7 +279,7 @@ function IntakePage() {
   return (
     <main className="mx-auto min-h-screen max-w-3xl px-5 py-10">
       <header className="mb-6 flex flex-col gap-2">
-        <span className="text-xs font-medium uppercase tracking-[0.2em] text-primary">ChatAI intake</span>
+        <span className="text-xs font-medium uppercase tracking-[0.2em] text-primary">QoreLabs intake</span>
         <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
           Vragenlijst voor uw AI-receptionist
         </h1>
@@ -320,12 +320,19 @@ function IntakePage() {
             <Veld label="Facebook-pagina" waarde={data.bedrijf.facebook} zet={(v) => zetVeld("bedrijf", "facebook", v)} />
             <Veld label="WhatsApp-nummer" waarde={data.bedrijf.whatsapp} zet={(v) => zetVeld("bedrijf", "whatsapp", v)} />
             <Veld label="Wie keurt de teksten goed?" waarde={data.bedrijf.goedkeurder} zet={(v) => zetVeld("bedrijf", "goedkeurder", v)} />
-            <div className="sm:col-span-2">
+            <div className="sm:col-span-2 grid gap-3">
               <Vinkjes
                 label="In welke talen moet de AI antwoorden?"
                 opties={["Nederlands", "Frans", "Engels"]}
                 waarden={data.bedrijf.talen}
                 zet={(v) => setData((d) => ({ ...d, bedrijf: { ...d.bedrijf, talen: v } }))}
+              />
+              <Veld
+                label="Andere taal"
+                hint="Spreekt u klanten ook in een andere taal aan, vul die hier in. Andere talen bespreken we samen."
+                plaats="Bijvoorbeeld Spaans of Duits"
+                waarde={data.bedrijf.andereTaal}
+                zet={(v) => setData((d) => ({ ...d, bedrijf: { ...d.bedrijf, andereTaal: v } }))}
               />
             </div>
           </div>
