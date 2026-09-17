@@ -12,7 +12,8 @@ export const Route = createFileRoute("/intake/$code")({
   component: IntakePage,
 });
 
-const SUBMIT_URL = "https://qorelabs.app.n8n.cloud/webhook/qore-intake";
+// n8n bewaart de antwoorden en geeft ze terug, zodat de eigenaar op elk toestel verder kan.
+const API_URL = "https://qorelabs.app.n8n.cloud/webhook/qore-intake";
 
 type Vestiging = {
   naam: string;
@@ -217,17 +218,36 @@ function IntakePage() {
   const [verzenden, setVerzenden] = useState(false);
   const [verzonden, setVerzonden] = useState(false);
   const [fout, setFout] = useState<string | null>(null);
+  const [opServer, setOpServer] = useState(false);
   const geladen = useRef(false);
 
-  // De antwoorden blijven op dit apparaat staan, zodat de eigenaar later verder kan.
+  // Eerst wat op dit toestel staat, daarna de bewaarde versie van de server (die telt).
   useEffect(() => {
+    let gestopt = false;
     try {
       const opgeslagen = localStorage.getItem(`qore-intake-${code}`);
       if (opgeslagen) setData({ ...leegData(), ...JSON.parse(opgeslagen) });
     } catch {
       // Geen opgeslagen versie of geen toegang: we starten gewoon leeg.
     }
-    geladen.current = true;
+    (async () => {
+      try {
+        const response = await fetch(`${API_URL}?code=${encodeURIComponent(code)}`);
+        if (!response.ok) throw new Error(`status ${response.status}`);
+        const gevonden = await response.json();
+        if (!gestopt && gevonden?.intake?.data) {
+          setData({ ...leegData(), ...gevonden.intake.data });
+          setOpServer(true);
+        }
+      } catch {
+        // Geen verbinding of nog niets bewaard: verder met wat op dit toestel staat.
+      } finally {
+        geladen.current = true;
+      }
+    })();
+    return () => {
+      gestopt = true;
+    };
   }, [code]);
 
   useEffect(() => {
@@ -244,19 +264,30 @@ function IntakePage() {
   const zetVeld = (sectie: "bedrijf" | "klanten" | "afspraken" | "annuleren" | "toon" | "faq" | "systemen", veld: string, waarde: string) =>
     setData((d) => ({ ...d, [sectie]: { ...(d[sectie] as Record<string, unknown>), [veld]: waarde } }) as Data);
 
+  const bewaarOpServer = async (status: "concept" | "ingevuld") => {
+    const response = await fetch(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code, status, data }),
+    });
+    if (!response.ok) throw new Error(`status ${response.status}`);
+    setOpServer(true);
+  };
+
+  // Bij elke stap bewaren we tussentijds, zodat niets verloren gaat bij het sluiten van het venster.
+  const naarStap = (nieuw: number) => {
+    setStap(nieuw);
+    if (geladen.current) bewaarOpServer("concept").catch(() => setOpServer(false));
+  };
+
   const versturen = async () => {
     setVerzenden(true);
     setFout(null);
     try {
-      const response = await fetch(SUBMIT_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code, ingevuld_op: new Date().toISOString(), data }),
-      });
-      if (!response.ok) throw new Error(`status ${response.status}`);
+      await bewaarOpServer("ingevuld");
       setVerzonden(true);
     } catch {
-      setFout("Versturen lukte niet. Probeer het zo nog eens, of mail ons dat het niet lukt. Uw antwoorden blijven bewaard op dit apparaat.");
+      setFout("Versturen lukte niet. Probeer het zo nog eens, of laat ons weten dat het niet lukt. Uw antwoorden blijven bewaard op dit apparaat.");
     } finally {
       setVerzenden(false);
     }
@@ -294,7 +325,7 @@ function IntakePage() {
           <button
             key={naam}
             type="button"
-            onClick={() => setStap(i)}
+            onClick={() => naarStap(i)}
             className={`rounded-full px-3 py-1.5 text-xs transition-colors ${
               i === stap ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground hover:text-foreground"
             }`}
@@ -626,16 +657,22 @@ function IntakePage() {
       <div className="mt-5 flex items-center justify-between gap-3">
         <button
           type="button"
-          onClick={() => setStap((s) => Math.max(0, s - 1))}
+          onClick={() => naarStap(Math.max(0, stap - 1))}
           disabled={stap === 0}
           className="rounded-full border border-border px-5 py-2.5 text-sm text-foreground transition-colors hover:border-primary disabled:opacity-40"
         >
           Vorige
         </button>
-        <span className="text-xs text-muted-foreground">{bewaard ? `Automatisch bewaard om ${bewaard}` : "Uw antwoorden blijven op dit apparaat bewaard"}</span>
+        <span className="text-xs text-muted-foreground">
+          {opServer
+            ? `Bewaard om ${bewaard ?? ""}, u kunt later verder op elk toestel`
+            : bewaard
+            ? `Bewaard op dit apparaat om ${bewaard}`
+            : "Uw antwoorden blijven bewaard"}
+        </span>
         <button
           type="button"
-          onClick={() => setStap((s) => Math.min(STAPPEN.length - 1, s + 1))}
+          onClick={() => naarStap(Math.min(STAPPEN.length - 1, stap + 1))}
           disabled={laatste}
           className="rounded-full bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-40"
         >
