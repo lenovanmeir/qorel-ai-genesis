@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as BeheerRouteImport } from './routes/beheer'
 import { Route as ChatTestRouteImport } from './routes/chat-test'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as IntakeCodeRouteImport } from './routes/intake.$code'
@@ -17,6 +18,11 @@ import { Route as IntakeCodeRouteImport } from './routes/intake.$code'
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BeheerRoute = BeheerRouteImport.update({
+  id: '/beheer',
+  path: '/beheer',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ChatTestRoute = ChatTestRouteImport.update({
@@ -37,12 +43,14 @@ const IntakeCodeRoute = IntakeCodeRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/beheer': typeof BeheerRoute
   '/chat-test': typeof ChatTestRoute
   '/privacy': typeof PrivacyRoute
   '/intake/$code': typeof IntakeCodeRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/beheer': typeof BeheerRoute
   '/chat-test': typeof ChatTestRoute
   '/privacy': typeof PrivacyRoute
   '/intake/$code': typeof IntakeCodeRoute
@@ -50,20 +58,22 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/beheer': typeof BeheerRoute
   '/chat-test': typeof ChatTestRoute
   '/privacy': typeof PrivacyRoute
   '/intake/$code': typeof IntakeCodeRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/chat-test' | '/privacy' | '/intake/$code'
+  fullPaths: '/' | '/beheer' | '/chat-test' | '/privacy' | '/intake/$code'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/chat-test' | '/privacy' | '/intake/$code'
-  id: '__root__' | '/' | '/chat-test' | '/privacy' | '/intake/$code'
+  to: '/' | '/beheer' | '/chat-test' | '/privacy' | '/intake/$code'
+  id: '__root__' | '/' | '/beheer' | '/chat-test' | '/privacy' | '/intake/$code'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  BeheerRoute: typeof BeheerRoute
   ChatTestRoute: typeof ChatTestRoute
   PrivacyRoute: typeof PrivacyRoute
   IntakeCodeRoute: typeof IntakeCodeRoute
@@ -76,6 +86,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/beheer': {
+      id: '/beheer'
+      path: '/beheer'
+      fullPath: '/beheer'
+      preLoaderRoute: typeof BeheerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/chat-test': {
@@ -104,6 +121,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  BeheerRoute: BeheerRoute,
   ChatTestRoute: ChatTestRoute,
   PrivacyRoute: PrivacyRoute,
   IntakeCodeRoute: IntakeCodeRoute,

@@ -124,7 +124,8 @@ function RootShell({ children }: { children: React.ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const hideWidget = pathname.startsWith("/chat-test") || pathname.startsWith("/intake");
+  const hideWidget =
+    pathname.startsWith("/chat-test") || pathname.startsWith("/intake") || pathname.startsWith("/beheer");
 
   return (
     <QueryClientProvider client={queryClient}>
