@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ChatTestRouteImport } from './routes/chat-test'
 import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as IntakeCodeRouteImport } from './routes/intake.$code'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -28,35 +29,44 @@ const PrivacyRoute = PrivacyRouteImport.update({
   path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
+const IntakeCodeRoute = IntakeCodeRouteImport.update({
+  id: '/intake/$code',
+  path: '/intake/$code',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/chat-test': typeof ChatTestRoute
   '/privacy': typeof PrivacyRoute
+  '/intake/$code': typeof IntakeCodeRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/chat-test': typeof ChatTestRoute
   '/privacy': typeof PrivacyRoute
+  '/intake/$code': typeof IntakeCodeRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/chat-test': typeof ChatTestRoute
   '/privacy': typeof PrivacyRoute
+  '/intake/$code': typeof IntakeCodeRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/chat-test' | '/privacy'
+  fullPaths: '/' | '/chat-test' | '/privacy' | '/intake/$code'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/chat-test' | '/privacy'
-  id: '__root__' | '/' | '/chat-test' | '/privacy'
+  to: '/' | '/chat-test' | '/privacy' | '/intake/$code'
+  id: '__root__' | '/' | '/chat-test' | '/privacy' | '/intake/$code'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ChatTestRoute: typeof ChatTestRoute
   PrivacyRoute: typeof PrivacyRoute
+  IntakeCodeRoute: typeof IntakeCodeRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -82,6 +92,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/intake/$code': {
+      id: '/intake/$code'
+      path: '/intake/$code'
+      fullPath: '/intake/$code'
+      preLoaderRoute: typeof IntakeCodeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -89,6 +106,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ChatTestRoute: ChatTestRoute,
   PrivacyRoute: PrivacyRoute,
+  IntakeCodeRoute: IntakeCodeRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
