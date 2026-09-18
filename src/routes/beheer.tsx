@@ -294,11 +294,42 @@ function BeheerPagina() {
             Vul uw beheercode in. Die staat in n8n en blijft op dit apparaat bewaard, zodat u hem maar één keer hoeft te typen.
           </p>
         </div>
-        <Invoer label="Beheercode" waarde={invoerSleutel} zet={setInvoerSleutel} type="password" />
-        {fout && <p className="text-sm text-destructive">{fout}</p>}
-        <Knop soort="hoofd" klik={aanmelden} uit={laden}>
-          {laden ? "Even kijken…" : "Openen"}
-        </Knop>
+        {/* Een echt formulier met een gebruikersnaam erin, zodat een wachtwoordbeheerder de code aanbiedt om te bewaren. */}
+        <form
+          className="flex flex-col gap-5"
+          onSubmit={(e) => {
+            e.preventDefault();
+            aanmelden();
+          }}
+        >
+          <input
+            type="text"
+            name="username"
+            autoComplete="username"
+            value="QoreLabs beheer"
+            readOnly
+            hidden
+          />
+          <label className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium text-foreground">Beheercode</span>
+            <input
+              type="password"
+              name="password"
+              autoComplete="current-password"
+              value={invoerSleutel}
+              onChange={(e) => setInvoerSleutel(e.target.value)}
+              className="w-full rounded-xl border border-input bg-background px-4 py-2.5 text-sm text-foreground outline-none ring-ring transition-all placeholder:text-muted-foreground focus:border-primary focus:ring-2"
+            />
+          </label>
+          {fout && <p className="text-sm text-destructive">{fout}</p>}
+          <button
+            type="submit"
+            disabled={laden}
+            className="rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+          >
+            {laden ? "Even kijken…" : "Openen"}
+          </button>
+        </form>
       </main>
     );
   }
