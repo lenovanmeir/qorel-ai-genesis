@@ -14,6 +14,7 @@ export const Route = createFileRoute("/beheer")({
 
 const INTAKE_URL = "https://qorelabs.app.n8n.cloud/webhook/qore-intake";
 const VOORBEREIDEN_URL = "https://qorelabs.app.n8n.cloud/webhook/qore-intake-voorbereiden";
+const OMZETTEN_URL = "https://qorelabs.app.n8n.cloud/webhook/qore-intake-omzetten";
 const SLEUTEL_OPSLAG = "qore-beheercode";
 
 type Status = "concept" | "verstuurd" | "ingevuld" | "gebouwd" | "live";
@@ -35,6 +36,23 @@ const STATUSSEN: { waarde: Status; naam: string; uitleg: string; kleur: string }
 ];
 
 const statusInfo = (s: Status) => STATUSSEN.find((x) => x.waarde === s) ?? STATUSSEN[0];
+
+type Verslag = {
+  kliniek: string;
+  aangemaakt: Record<string, number>;
+  ontbreekt: string[];
+  nog_koppelen: string[];
+};
+
+const AANGEMAAKT_NAMEN: Record<string, string> = {
+  vestigingen: "vestigingen",
+  behandelingen: "behandelingen",
+  prijzen: "prijzen",
+  kennis: "kennisdocumenten",
+  regels: "regels",
+  overdrachten: "overdrachtsregels",
+  keuzeknoppen: "keuzeknoppen",
+};
 
 const intakeLink = (code: string) => `https://qorelabs.io/intake/${code}`;
 
@@ -142,6 +160,8 @@ function BeheerPagina() {
   const [melding, setMelding] = useState<string | null>(null);
 
   const [handmatig, setHandmatig] = useState<{ wat: string; tekst: string } | null>(null);
+  const [verslag, setVerslag] = useState<Verslag | null>(null);
+  const [omzetten, setOmzetten] = useState<string | null>(null);
 
   const [nieuwNaam, setNieuwNaam] = useState("");
   const [nieuwWebsite, setNieuwWebsite] = useState("");
@@ -235,6 +255,27 @@ function BeheerPagina() {
       if (!antwoord.ok) throw new Error(`status ${antwoord.status}`);
     } catch {
       setFout("De status bewaren lukte niet. Ververs de pagina om te zien wat er wel bewaard is.");
+    }
+  };
+
+  const omzettenNaarChatbot = async (k: Kliniek) => {
+    setOmzetten(k.code);
+    setFout(null);
+    setVerslag(null);
+    try {
+      const antwoord = await fetch(OMZETTEN_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: k.code, sleutel }),
+      });
+      if (!antwoord.ok) throw new Error(`status ${antwoord.status}`);
+      const uitkomst = await antwoord.json();
+      setVerslag(uitkomst);
+      await ophalen(sleutel);
+    } catch {
+      setFout("Omzetten lukte niet. Kijk in n8n bij de uitvoeringen wat er misging.");
+    } finally {
+      setOmzetten(null);
     }
   };
 
@@ -391,6 +432,51 @@ function BeheerPagina() {
         </div>
       )}
 
+      {verslag && (
+        <section className="mb-4 rounded-2xl border border-border bg-card p-4 sm:p-5">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h3 className="font-medium text-foreground">{verslag.kliniek} staat klaar in de chatbot</h3>
+            <button
+              type="button"
+              onClick={() => setVerslag(null)}
+              className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+            >
+              Sluiten
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(verslag.aangemaakt || {}).map(([sleutelNaam, aantal]) => (
+              <span key={sleutelNaam} className="rounded-full bg-secondary px-3 py-1 text-xs text-foreground">
+                {aantal} {AANGEMAAKT_NAMEN[sleutelNaam] ?? sleutelNaam}
+              </span>
+            ))}
+          </div>
+          {verslag.ontbreekt?.length > 0 && (
+            <div className="mt-4">
+              <p className="text-sm font-medium text-foreground">Dit ontbreekt nog ({verslag.ontbreekt.length})</p>
+              <p className="mb-2 text-xs text-muted-foreground">
+                De AI verzint niets. Vul dit aan in het formulier en zet daarna opnieuw om.
+              </p>
+              <ul className="grid gap-1 text-sm text-muted-foreground">
+                {verslag.ontbreekt.map((regel) => (
+                  <li key={regel}>· {regel}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {verslag.nog_koppelen?.length > 0 && (
+            <div className="mt-4">
+              <p className="text-sm font-medium text-foreground">Nog te koppelen bij Meta</p>
+              <ul className="grid gap-1 text-sm text-muted-foreground">
+                {verslag.nog_koppelen.map((regel) => (
+                  <li key={regel}>· {regel}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </section>
+      )}
+
       {melding && (
         <p className="mb-4 rounded-xl border border-primary/30 bg-primary/10 px-4 py-2.5 text-sm text-foreground">{melding}</p>
       )}
@@ -445,6 +531,9 @@ function BeheerPagina() {
                 <Knop klik={() => kopieer(intakeLink(k.code), "Link")}>Link kopiëren</Knop>
                 <Knop klik={() => kopieer(berichtWhatsapp(k), "WhatsApp-bericht")}>Bericht voor WhatsApp</Knop>
                 <Knop klik={() => kopieer(berichtEmail(k), "E-mail")}>Bericht voor e-mail</Knop>
+                <Knop soort="hoofd" klik={() => omzettenNaarChatbot(k)} uit={omzetten !== null}>
+                  {omzetten === k.code ? "Bezig…" : "Omzetten naar chatbot"}
+                </Knop>
               </div>
 
               <div className="mt-4 flex flex-wrap items-center gap-2">
