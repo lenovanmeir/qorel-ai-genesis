@@ -250,6 +250,10 @@ function IntakePage() {
   const geladen = useRef(false);
   // Wat de chatbot nu gebruikt, om te zien of er iets gewijzigd is dat nog niet opgeslagen werd.
   const laatstOpgeslagen = useRef<string | null>(null);
+  // Wat er het laatst op de server staat, zodat we niet onnodig opnieuw bewaren.
+  const laatstOpServer = useRef<string | null>(null);
+  const dataNu = useRef(data);
+  dataNu.current = data;
 
   // Eerst wat op dit toestel staat, daarna de bewaarde versie van de server (die telt).
   useEffect(() => {
@@ -272,6 +276,7 @@ function IntakePage() {
           const vanServer = { ...leegData(), ...gevonden.intake.data };
           setData(vanServer);
           laatstOpgeslagen.current = JSON.stringify(vanServer);
+          laatstOpServer.current = JSON.stringify(vanServer);
           setOpServer(true);
         }
       } catch {
@@ -315,8 +320,40 @@ function IntakePage() {
     });
     if (!response.ok) throw new Error(`status ${response.status}`);
     setOpServer(true);
+    laatstOpServer.current = JSON.stringify(data);
     return (await response.json().catch(() => ({}))) as { bijgewerkt?: boolean | null; leeg?: boolean };
   };
+
+  // Een minuut na de laatste wijziging bewaren we tussentijds op de server. Zo ziet QoreLabs
+  // ook wijzigingen van iemand die vergeet op Opslaan te klikken.
+  useEffect(() => {
+    if (!geladen.current || JSON.stringify(data) === laatstOpServer.current) return;
+    const wacht = setTimeout(() => {
+      bewaarOpServer("tussendoor").catch(() => setOpServer(false));
+    }, 60_000);
+    return () => clearTimeout(wacht);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data]);
+
+  // Sluit iemand het venster of wisselt van tabblad, dan bewaren we meteen wat nog niet op de server staat.
+  useEffect(() => {
+    const wegGaan = () => {
+      if (document.visibilityState !== "hidden" || !geladen.current) return;
+      const nu = JSON.stringify(dataNu.current);
+      if (nu === laatstOpServer.current) return;
+      laatstOpServer.current = nu;
+      fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code, data: dataNu.current }),
+        keepalive: true,
+      }).catch(() => {
+        laatstOpServer.current = null;
+      });
+    };
+    document.addEventListener("visibilitychange", wegGaan);
+    return () => document.removeEventListener("visibilitychange", wegGaan);
+  }, [code]);
 
   // Bij elke stap bewaren we tussentijds, zodat niets verloren gaat bij het sluiten van het venster.
   const naarStap = (nieuw: number) => {
