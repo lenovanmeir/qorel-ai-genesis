@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { OPTIES, TALEN, TEKSTEN, isTaal, type Optie, type Taal } from "@/lib/intake-teksten";
 
 export const Route = createFileRoute("/intake/$code")({
+  // De taal komt mee in de link (?taal=fr), zodat een Franstalige kliniek meteen in het Frans begint.
+  validateSearch: (zoek: Record<string, unknown>): { taal?: Taal } => (isTaal(zoek.taal) ? { taal: zoek.taal } : {}),
   head: () => ({
     meta: [
       { title: "QoreLabs intake" },
@@ -99,16 +102,6 @@ const leegData = (): Data => ({
   promoties: [],
 });
 
-const STAPPEN = [
-  "Bedrijf en kanalen",
-  "Vestigingen",
-  "Behandelingen en consulten",
-  "Afspraken en annuleren",
-  "Grenzen en overdracht",
-  "Toon, vragen en systemen",
-  "Nakijken en versturen",
-];
-
 function Veld({ label, waarde, zet, hint, regels = 1, plaats }: {
   label: string; waarde: string; zet: (v: string) => void; hint?: string; regels?: number; plaats?: string;
 }) {
@@ -127,8 +120,16 @@ function Veld({ label, waarde, zet, hint, regels = 1, plaats }: {
   );
 }
 
-function Keuze({ label, opties, waarde, zet, hint }: {
-  label: string; opties: string[]; waarde: string; zet: (v: string) => void; hint?: string;
+const chipKlas = (actief: boolean) =>
+  `rounded-full border px-4 py-2 text-sm transition-colors ${
+    actief
+      ? "border-primary bg-primary/15 text-foreground"
+      : "border-border bg-background text-muted-foreground hover:border-primary/50 hover:text-foreground"
+  }`;
+
+// De knop toont de vertaalde tekst, maar bewaart altijd de Nederlandse waarde.
+function Keuze({ label, opties, taal, waarde, zet, hint }: {
+  label: string; opties: Optie[]; taal: Taal; waarde: string; zet: (v: string) => void; hint?: string;
 }) {
   return (
     <div className="flex flex-col gap-2">
@@ -136,17 +137,8 @@ function Keuze({ label, opties, waarde, zet, hint }: {
       {hint && <span className="text-xs text-muted-foreground">{hint}</span>}
       <div className="flex flex-wrap gap-2">
         {opties.map((o) => (
-          <button
-            key={o}
-            type="button"
-            onClick={() => zet(waarde === o ? "" : o)}
-            className={`rounded-full border px-4 py-2 text-sm transition-colors ${
-              waarde === o
-                ? "border-primary bg-primary/15 text-foreground"
-                : "border-border bg-background text-muted-foreground hover:border-primary/50 hover:text-foreground"
-            }`}
-          >
-            {o}
+          <button key={o.w} type="button" onClick={() => zet(waarde === o.w ? "" : o.w)} className={chipKlas(waarde === o.w)}>
+            {o.l[taal]}
           </button>
         ))}
       </div>
@@ -154,27 +146,18 @@ function Keuze({ label, opties, waarde, zet, hint }: {
   );
 }
 
-function Vinkjes({ label, opties, waarden, zet, hint }: {
-  label: string; opties: string[]; waarden: string[]; zet: (v: string[]) => void; hint?: string;
+function Vinkjes({ label, opties, taal, waarden, zet, hint }: {
+  label: string; opties: Optie[]; taal: Taal; waarden: string[]; zet: (v: string[]) => void; hint?: string;
 }) {
-  const wissel = (o: string) => zet(waarden.includes(o) ? waarden.filter((w) => w !== o) : [...waarden, o]);
+  const wissel = (w: string) => zet(waarden.includes(w) ? waarden.filter((x) => x !== w) : [...waarden, w]);
   return (
     <div className="flex flex-col gap-2">
       <span className="text-sm font-medium text-foreground">{label}</span>
       {hint && <span className="text-xs text-muted-foreground">{hint}</span>}
       <div className="flex flex-wrap gap-2">
         {opties.map((o) => (
-          <button
-            key={o}
-            type="button"
-            onClick={() => wissel(o)}
-            className={`rounded-full border px-4 py-2 text-sm transition-colors ${
-              waarden.includes(o)
-                ? "border-primary bg-primary/15 text-foreground"
-                : "border-border bg-background text-muted-foreground hover:border-primary/50 hover:text-foreground"
-            }`}
-          >
-            {o}
+          <button key={o.w} type="button" onClick={() => wissel(o.w)} className={chipKlas(waarden.includes(o.w))}>
+            {o.l[taal]}
           </button>
         ))}
       </div>
@@ -182,14 +165,16 @@ function Vinkjes({ label, opties, waarden, zet, hint }: {
   );
 }
 
-function Blok({ titel, kanWeg, weg, children }: { titel: string; kanWeg: boolean; weg: () => void; children: React.ReactNode }) {
+function Blok({ titel, kanWeg, weg, wegTekst, children }: {
+  titel: string; kanWeg: boolean; weg: () => void; wegTekst: string; children: React.ReactNode;
+}) {
   return (
     <div className="rounded-2xl border border-border bg-background/60 p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
         <span className="text-sm font-semibold text-foreground">{titel}</span>
         {kanWeg && (
           <button type="button" onClick={weg} className="text-xs text-muted-foreground underline-offset-2 hover:text-destructive hover:underline">
-            Verwijderen
+            {wegTekst}
           </button>
         )}
       </div>
@@ -210,8 +195,48 @@ function Toevoegen({ tekst, klik }: { tekst: string; klik: () => void }) {
   );
 }
 
+function TaalKiezer({ taal, kies }: { taal: Taal; kies: (t: Taal) => void }) {
+  return (
+    <div className="flex items-center gap-1 rounded-full border border-border p-1">
+      {TALEN.map((t) => (
+        <button
+          key={t.code}
+          type="button"
+          onClick={() => kies(t.code)}
+          aria-pressed={taal === t.code}
+          className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+            taal === t.code ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          {t.naam}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function Voettekst({ t }: { t: (typeof TEKSTEN)[Taal] }) {
+  return (
+    <footer className="mt-8 flex flex-col gap-1 border-t border-border pt-5 text-xs text-muted-foreground">
+      <p>{t.vragen}</p>
+      <p>
+        {t.privacy}{" "}
+        <a href="/privacy" target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-foreground">
+          {t.privacyLink}
+        </a>
+      </p>
+    </footer>
+  );
+}
+
 function IntakePage() {
   const { code } = Route.useParams();
+  const { taal: taalUitLink } = Route.useSearch();
+  const navigate = useNavigate({ from: Route.fullPath });
+  const taal: Taal = taalUitLink ?? "nl";
+  const t = TEKSTEN[taal];
+  const kiesTaal = (nieuw: Taal) => navigate({ search: { taal: nieuw }, replace: true });
+
   const [stap, setStap] = useState(0);
   const [data, setData] = useState<Data>(leegData());
   const [bewaard, setBewaard] = useState<string | null>(null);
@@ -290,7 +315,7 @@ function IntakePage() {
     });
     if (!response.ok) throw new Error(`status ${response.status}`);
     setOpServer(true);
-    return (await response.json().catch(() => ({}))) as { bijgewerkt?: boolean | null };
+    return (await response.json().catch(() => ({}))) as { bijgewerkt?: boolean | null; leeg?: boolean };
   };
 
   // Bij elke stap bewaren we tussentijds, zodat niets verloren gaat bij het sluiten van het venster.
@@ -303,12 +328,16 @@ function IntakePage() {
     setVerzenden(true);
     setFout(null);
     try {
-      await bewaarOpServer("versturen");
+      const antwoord = await bewaarOpServer("versturen");
+      if (antwoord.leeg) {
+        setFout(t.leeg);
+        return;
+      }
       laatstOpgeslagen.current = JSON.stringify(data);
       setServerStatus("ingevuld");
       setVerzonden(true);
     } catch {
-      setFout("Versturen lukte niet. Probeer het zo nog eens, of laat ons weten dat het niet lukt. Uw antwoorden blijven bewaard op dit apparaat.");
+      setFout(t.foutVersturen);
     } finally {
       setVerzenden(false);
     }
@@ -320,13 +349,17 @@ function IntakePage() {
     setBijgewerkt(null);
     try {
       const antwoord = await bewaarOpServer("versturen");
+      if (antwoord.leeg) {
+        setFout(t.leeg);
+        return;
+      }
       laatstOpgeslagen.current = JSON.stringify(data);
       setBijgewerkt({
         gelukt: antwoord.bijgewerkt === true,
         om: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       });
     } catch {
-      setFout("Opslaan lukte niet. Probeer het zo nog eens. Uw wijzigingen blijven bewaard op dit apparaat.");
+      setFout(t.foutOpslaan);
     } finally {
       setOpslaan(false);
     }
@@ -334,78 +367,74 @@ function IntakePage() {
 
   if (verzonden) {
     return (
-      <main className="mx-auto flex min-h-screen max-w-2xl flex-col items-center justify-center gap-4 px-5 py-16 text-center">
-        <h1 className="font-display text-2xl font-semibold text-foreground">Bedankt, we hebben alles ontvangen</h1>
-        <p className="text-sm text-muted-foreground">
-          We bouwen uw AI-receptionist en testen hem op alle kanalen. Daarna krijgt u hem zelf te zien om uit te proberen. Pas na uw
-          goedkeuring gaat hij live. Ontbreekt er nog iets, dan nemen we contact met u op.
-        </p>
-        <p className="text-sm text-muted-foreground">
-          Wilt u later iets aanpassen, zoals een prijs of openingsuren? Open dan gewoon dezelfde link, pas het aan en klik op Opslaan.
-          Uw AI-receptionist gebruikt het meteen.
-        </p>
+      <main lang={taal} className="mx-auto flex min-h-screen max-w-2xl flex-col items-center justify-center gap-4 px-5 py-16 text-center">
+        <h1 className="font-display text-2xl font-semibold text-foreground">{t.bedanktTitel}</h1>
+        <p className="text-sm text-muted-foreground">{t.bedanktTekst}</p>
+        <p className="text-sm text-muted-foreground">{t.bedanktLater}</p>
+        <Voettekst t={t} />
       </main>
     );
   }
 
-  const laatste = stap === STAPPEN.length - 1;
+  const laatste = stap === STAPPEN_AANTAL - 1;
+  const naam = data.bedrijf.naam.trim();
 
   return (
-    <main className="mx-auto min-h-screen max-w-3xl px-5 py-10">
+    <main lang={taal} className="mx-auto min-h-screen max-w-3xl px-5 py-10">
       <header className="mb-6 flex flex-col gap-2">
-        <span className="text-xs font-medium uppercase tracking-[0.2em] text-primary">QoreLabs intake</span>
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-xs font-medium uppercase tracking-[0.2em] text-primary">QoreLabs intake</span>
+          <TaalKiezer taal={taal} kies={kiesTaal} />
+        </div>
         <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-          Vragenlijst voor uw AI-receptionist
+          {naam ? t.titelMetNaam(naam) : t.titel}
         </h1>
-        <p className="text-sm text-muted-foreground">
-          {alVerstuurd
-            ? "Pas aan wat nodig is en klik op Opslaan. Uw AI-receptionist gebruikt de nieuwe informatie meteen. Weet u iets niet zeker, laat het dan open: de AI verzint nooit iets."
-            : "Invullen duurt ongeveer 30 minuten. U kunt tussendoor stoppen: uw antwoorden blijven bewaard op dit apparaat en u gaat later gewoon verder via dezelfde link. Weet u iets niet zeker, laat het dan open. Wij vullen niets zelf in en de AI verzint nooit iets."}
-        </p>
+        <p className="text-sm text-muted-foreground">{alVerstuurd ? t.uitlegBewerken : t.uitlegNieuw}</p>
       </header>
 
       <div className="mb-6 flex flex-wrap items-center gap-2">
-        {STAPPEN.map((naam, i) => (
+        {t.stappen.map((stapNaam, i) => (
           <button
-            key={naam}
+            key={i}
             type="button"
             onClick={() => naarStap(i)}
             className={`rounded-full px-3 py-1.5 text-xs transition-colors ${
               i === stap ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground hover:text-foreground"
             }`}
           >
-            {i + 1}. {naam}
+            {i + 1}. {stapNaam}
           </button>
         ))}
       </div>
 
       <div className="rounded-3xl border border-border bg-card p-5 sm:p-7">
         <h2 className="mb-5 font-display text-lg font-semibold text-foreground">
-          {stap + 1}. {STAPPEN[stap]}
+          {stap + 1}. {t.stappen[stap]}
         </h2>
 
         {stap === 0 && (
           <div className="grid gap-4 sm:grid-cols-2">
-            <Veld label="Bedrijfsnaam" waarde={data.bedrijf.naam} zet={(v) => zetVeld("bedrijf", "naam", v)} />
-            <Veld label="Website" waarde={data.bedrijf.website} zet={(v) => zetVeld("bedrijf", "website", v)} plaats="https://" />
-            <Veld label="Contactpersoon" waarde={data.bedrijf.contact} zet={(v) => zetVeld("bedrijf", "contact", v)} />
-            <Veld label="E-mail" waarde={data.bedrijf.email} zet={(v) => zetVeld("bedrijf", "email", v)} />
-            <Veld label="Telefoon" waarde={data.bedrijf.telefoon} zet={(v) => zetVeld("bedrijf", "telefoon", v)} />
-            <Veld label="Instagram-account" waarde={data.bedrijf.instagram} zet={(v) => zetVeld("bedrijf", "instagram", v)} plaats="@" />
-            <Veld label="Facebook-pagina" waarde={data.bedrijf.facebook} zet={(v) => zetVeld("bedrijf", "facebook", v)} />
-            <Veld label="WhatsApp-nummer" waarde={data.bedrijf.whatsapp} zet={(v) => zetVeld("bedrijf", "whatsapp", v)} />
-            <Veld label="Wie keurt de teksten goed?" waarde={data.bedrijf.goedkeurder} zet={(v) => zetVeld("bedrijf", "goedkeurder", v)} />
+            <Veld label={t.bedrijfsnaam} waarde={data.bedrijf.naam} zet={(v) => zetVeld("bedrijf", "naam", v)} />
+            <Veld label={t.website} waarde={data.bedrijf.website} zet={(v) => zetVeld("bedrijf", "website", v)} plaats="https://" />
+            <Veld label={t.contactpersoon} waarde={data.bedrijf.contact} zet={(v) => zetVeld("bedrijf", "contact", v)} />
+            <Veld label={t.email} waarde={data.bedrijf.email} zet={(v) => zetVeld("bedrijf", "email", v)} />
+            <Veld label={t.telefoon} waarde={data.bedrijf.telefoon} zet={(v) => zetVeld("bedrijf", "telefoon", v)} />
+            <Veld label={t.instagram} waarde={data.bedrijf.instagram} zet={(v) => zetVeld("bedrijf", "instagram", v)} plaats="@" />
+            <Veld label={t.facebook} waarde={data.bedrijf.facebook} zet={(v) => zetVeld("bedrijf", "facebook", v)} />
+            <Veld label={t.whatsapp} waarde={data.bedrijf.whatsapp} zet={(v) => zetVeld("bedrijf", "whatsapp", v)} />
+            <Veld label={t.goedkeurder} waarde={data.bedrijf.goedkeurder} zet={(v) => zetVeld("bedrijf", "goedkeurder", v)} />
             <div className="sm:col-span-2 grid gap-3">
               <Vinkjes
-                label="In welke talen moet de AI antwoorden?"
-                opties={["Nederlands", "Frans", "Engels"]}
+                label={t.talen}
+                opties={OPTIES.talen}
+                taal={taal}
                 waarden={data.bedrijf.talen}
                 zet={(v) => setData((d) => ({ ...d, bedrijf: { ...d.bedrijf, talen: v } }))}
               />
               <Veld
-                label="Andere taal"
-                hint="Spreekt u klanten ook in een andere taal aan, vul die hier in. Andere talen bespreken we samen."
-                plaats="Bijvoorbeeld Spaans of Duits"
+                label={t.andereTaal}
+                hint={t.andereTaalHint}
+                plaats={t.andereTaalPlaats}
                 waarde={data.bedrijf.andereTaal}
                 zet={(v) => setData((d) => ({ ...d, bedrijf: { ...d.bedrijf, andereTaal: v } }))}
               />
@@ -415,21 +444,22 @@ function IntakePage() {
 
         {stap === 1 && (
           <div className="grid gap-4">
-            <p className="text-sm text-muted-foreground">Vul één blok in per vestiging. Klik onderaan om er een toe te voegen.</p>
+            <p className="text-sm text-muted-foreground">{t.vestigingenIntro}</p>
             {data.vestigingen.map((v, i) => (
               <Blok
                 key={i}
-                titel={`Vestiging ${i + 1}`}
+                titel={t.vestiging(i + 1)}
                 kanWeg={data.vestigingen.length > 1}
+                wegTekst={t.verwijderen}
                 weg={() => zet("vestigingen", data.vestigingen.filter((_, j) => j !== i))}
               >
                 {([
-                  ["Naam", "naam"],
-                  ["Adres", "adres"],
-                  ["Openingstijden", "openingstijden"],
-                  ["Telefoon of e-mail", "contact"],
-                  ["Boekingslink of agenda", "boekingslink"],
-                  ["Welke behandelingen hier", "behandelingen"],
+                  [t.naam, "naam"],
+                  [t.adres, "adres"],
+                  [t.openingstijden, "openingstijden"],
+                  [t.telefoonOfEmail, "contact"],
+                  [t.boekingslink, "boekingslink"],
+                  [t.behandelingenHier, "behandelingen"],
                 ] as const).map(([label, veld]) => (
                   <Veld
                     key={veld}
@@ -440,35 +470,30 @@ function IntakePage() {
                 ))}
               </Blok>
             ))}
-            <Toevoegen tekst="Vestiging toevoegen" klik={() => zet("vestigingen", [...data.vestigingen, leegVestiging()])} />
+            <Toevoegen tekst={t.vestigingToevoegen} klik={() => zet("vestigingen", [...data.vestigingen, leegVestiging()])} />
           </div>
         )}
 
         {stap === 2 && (
           <div className="grid gap-5">
-            <Veld
-              label="Welke categorieën gebruikt u, in uw eigen woorden?"
-              hint="Bijvoorbeeld: ontharing, huidverbetering, injectables. De AI toont eerst een categorie en pas daarna de behandelingen."
-              waarde={data.categorieen}
-              zet={(v) => zet("categorieen", v)}
-              regels={2}
-            />
+            <Veld label={t.categorieen} hint={t.categorieenHint} waarde={data.categorieen} zet={(v) => zet("categorieen", v)} regels={2} />
             <div className="grid gap-4">
               {data.behandelingen.map((b, i) => (
                 <Blok
                   key={i}
-                  titel={`Behandeling ${i + 1}`}
+                  titel={t.behandeling(i + 1)}
                   kanWeg={data.behandelingen.length > 1}
+                  wegTekst={t.verwijderen}
                   weg={() => zet("behandelingen", data.behandelingen.filter((_, j) => j !== i))}
                 >
                   {([
-                    ["Naam", "naam"],
-                    ["Categorie", "categorie"],
-                    ["Korte uitleg (2 zinnen)", "uitleg"],
-                    ["Duur", "duur"],
-                    ["Prijs of vanaf-prijs", "prijs"],
-                    ["Eerst een consult nodig?", "consultNodig"],
-                    ["Mag de AI deze voorstellen?", "magVoorstellen"],
+                    [t.naam, "naam"],
+                    [t.categorie, "categorie"],
+                    [t.uitleg, "uitleg"],
+                    [t.duur, "duur"],
+                    [t.prijs, "prijs"],
+                    [t.consultNodig, "consultNodig"],
+                    [t.magVoorstellenDeze, "magVoorstellen"],
                   ] as const).map(([label, veld]) => (
                     <Veld
                       key={veld}
@@ -480,28 +505,24 @@ function IntakePage() {
                   ))}
                 </Blok>
               ))}
-              <Toevoegen tekst="Behandeling toevoegen" klik={() => zet("behandelingen", [...data.behandelingen, leegBehandeling()])} />
+              <Toevoegen tekst={t.behandelingToevoegen} klik={() => zet("behandelingen", [...data.behandelingen, leegBehandeling()])} />
             </div>
-            <Veld
-              label="Zijn er behandelingen die de AI beter niet noemt?"
-              waarde={data.behandelingenNiet}
-              zet={(v) => zet("behandelingenNiet", v)}
-              regels={2}
-            />
+            <Veld label={t.behandelingenNiet} waarde={data.behandelingenNiet} zet={(v) => zet("behandelingenNiet", v)} regels={2} />
             <div className="grid gap-4">
               {data.consulten.map((c, i) => (
                 <Blok
                   key={i}
-                  titel={`Consult ${i + 1}`}
+                  titel={t.consult(i + 1)}
                   kanWeg={data.consulten.length > 1}
+                  wegTekst={t.verwijderen}
                   weg={() => zet("consulten", data.consulten.filter((_, j) => j !== i))}
                 >
                   {([
-                    ["Naam van het consult", "naam"],
-                    ["Waarvoor is het bedoeld?", "waarvoor"],
-                    ["Gratis of prijs", "prijs"],
-                    ["Duur", "duur"],
-                    ["Op welke vestigingen", "vestigingen"],
+                    [t.consultNaam, "naam"],
+                    [t.waarvoor, "waarvoor"],
+                    [t.gratisOfPrijs, "prijs"],
+                    [t.duur, "duur"],
+                    [t.opVestigingen, "vestigingen"],
                   ] as const).map(([label, veld]) => (
                     <Veld
                       key={veld}
@@ -512,161 +533,153 @@ function IntakePage() {
                   ))}
                 </Blok>
               ))}
-              <Toevoegen tekst="Consult toevoegen" klik={() => zet("consulten", [...data.consulten, leegConsult()])} />
+              <Toevoegen tekst={t.consultToevoegen} klik={() => zet("consulten", [...data.consulten, leegConsult()])} />
             </div>
-            <Veld
-              label="Wat gebeurt er meteen na een consult?"
-              hint="Bijvoorbeeld een offerte, een behandelplan of meteen een afspraak."
-              waarde={data.naConsult}
-              zet={(v) => zet("naConsult", v)}
-              regels={2}
-            />
+            <Veld label={t.naConsult} hint={t.naConsultHint} waarde={data.naConsult} zet={(v) => zet("naConsult", v)} regels={2} />
           </div>
         )}
 
         {stap === 3 && (
           <div className="grid gap-5">
             <Vinkjes
-              label="Welke klantgegevens zijn verplicht om een afspraak te maken?"
-              opties={["Voornaam", "Achternaam", "Telefoonnummer", "E-mailadres", "Behandeling", "Datum en tijd", "Voorkeursmedewerker"]}
+              label={t.verplichteGegevens}
+              opties={OPTIES.verplichteGegevens}
+              taal={taal}
               waarden={data.afspraken.verplichteGegevens}
               zet={(v) => setData((d) => ({ ...d, afspraken: { ...d.afspraken, verplichteGegevens: v } }))}
             />
-            <Veld label="Welk agenda- of afsprakensysteem gebruikt u?" waarde={data.afspraken.systeem} zet={(v) => zetVeld("afspraken", "systeem", v)} />
+            <Veld label={t.systeem} waarde={data.afspraken.systeem} zet={(v) => zetVeld("afspraken", "systeem", v)} />
             <Keuze
-              label="Mag de AI de vrije momenten uit uw agenda tonen?"
-              hint="Dit bepaalt of de AI kan zeggen dat een dag ruim of beperkt beschikbaar is, of alleen kan doorverwijzen."
-              opties={["Beschikbaarheid tonen én boeken", "Alleen beschikbaarheid tonen", "Alleen doorverwijzen"]}
+              label={t.agendaToegang}
+              hint={t.agendaToegangHint}
+              opties={OPTIES.agendaToegang}
+              taal={taal}
               waarde={data.afspraken.agendaToegang}
               zet={(v) => zetVeld("afspraken", "agendaToegang", v)}
             />
-            <Veld label="Hoe lang vóór een afspraak moet een klant minimaal boeken?" waarde={data.afspraken.minimumVooraf} zet={(v) => zetVeld("afspraken", "minimumVooraf", v)} />
-            <Veld label="Is er een buffer nodig tussen twee afspraken?" waarde={data.afspraken.buffer} zet={(v) => zetVeld("afspraken", "buffer", v)} />
-            <Keuze
-              label="Mogen klanten dezelfde dag nog boeken?"
-              opties={["Ja", "Nee", "Onder voorwaarden"]}
-              waarde={data.afspraken.zelfdeDag}
-              zet={(v) => zetVeld("afspraken", "zelfdeDag", v)}
-            />
-            <Veld label="Voor welke behandelingen is eerst een consult nodig?" waarde={data.afspraken.consultVerplicht} zet={(v) => zetVeld("afspraken", "consultVerplicht", v)} regels={2} />
-            <Veld label="Hoe ver vooraf mogen klanten inplannen?" waarde={data.afspraken.hoeVerVooruit} zet={(v) => zetVeld("afspraken", "hoeVerVooruit", v)} />
-            <Veld label="Andere boekingsregels of uitzonderingen?" waarde={data.afspraken.andereRegels} zet={(v) => zetVeld("afspraken", "andereRegels", v)} regels={2} />
-            <Veld label="Hoe lang vooraf moet een klant annuleren of verplaatsen?" waarde={data.annuleren.termijn} zet={(v) => zetVeld("annuleren", "termijn", v)} />
-            <Veld label="Is er een annuleringskost? Vanaf wanneer en hoeveel?" waarde={data.annuleren.kost} zet={(v) => zetVeld("annuleren", "kost", v)} regels={2} />
-            <Veld label="Wat gebeurt er bij een no-show?" waarde={data.annuleren.noShow} zet={(v) => zetVeld("annuleren", "noShow", v)} regels={2} />
-            <Veld label="Werkt u met een voorschot?" waarde={data.annuleren.voorschot} zet={(v) => zetVeld("annuleren", "voorschot", v)} />
-            <Veld label="Wanneer moet een medewerker tussenkomen bij annuleren of verplaatsen?" waarde={data.annuleren.medewerker} zet={(v) => zetVeld("annuleren", "medewerker", v)} regels={2} />
+            <Veld label={t.minimumVooraf} waarde={data.afspraken.minimumVooraf} zet={(v) => zetVeld("afspraken", "minimumVooraf", v)} />
+            <Veld label={t.buffer} waarde={data.afspraken.buffer} zet={(v) => zetVeld("afspraken", "buffer", v)} />
+            <Keuze label={t.zelfdeDag} opties={OPTIES.jaNee} taal={taal} waarde={data.afspraken.zelfdeDag} zet={(v) => zetVeld("afspraken", "zelfdeDag", v)} />
+            <Veld label={t.consultVerplicht} waarde={data.afspraken.consultVerplicht} zet={(v) => zetVeld("afspraken", "consultVerplicht", v)} regels={2} />
+            <Veld label={t.hoeVerVooruit} waarde={data.afspraken.hoeVerVooruit} zet={(v) => zetVeld("afspraken", "hoeVerVooruit", v)} />
+            <Veld label={t.andereRegels} waarde={data.afspraken.andereRegels} zet={(v) => zetVeld("afspraken", "andereRegels", v)} regels={2} />
+            <Veld label={t.annuleerTermijn} waarde={data.annuleren.termijn} zet={(v) => zetVeld("annuleren", "termijn", v)} />
+            <Veld label={t.annuleerKost} waarde={data.annuleren.kost} zet={(v) => zetVeld("annuleren", "kost", v)} regels={2} />
+            <Veld label={t.noShow} waarde={data.annuleren.noShow} zet={(v) => zetVeld("annuleren", "noShow", v)} regels={2} />
+            <Veld label={t.voorschot} waarde={data.annuleren.voorschot} zet={(v) => zetVeld("annuleren", "voorschot", v)} />
+            <Veld label={t.medewerkerAnnuleren} waarde={data.annuleren.medewerker} zet={(v) => zetVeld("annuleren", "medewerker", v)} regels={2} />
           </div>
         )}
 
         {stap === 4 && (
           <div className="grid gap-5">
             <Vinkjes
-              label="Wat mag de AI zelfstandig doen?"
-              opties={["Algemene vragen beantwoorden", "Prijzen communiceren", "Afspraken maken", "Afspraken verplaatsen", "Klantgegevens verzamelen", "Behandelingen uitleggen", "Promoties communiceren", "Een consult voorstellen"]}
+              label={t.magZelfstandig}
+              opties={OPTIES.magZelfstandig}
+              taal={taal}
               waarden={data.grenzen.magZelfstandig}
               zet={(v) => setData((d) => ({ ...d, grenzen: { ...d.grenzen, magZelfstandig: v } }))}
             />
-            <Veld label="Wat mag de AI absoluut nooit zelfstandig doen of beantwoorden?" waarde={data.grenzen.nooit} zet={(v) => setData((d) => ({ ...d, grenzen: { ...d.grenzen, nooit: v } }))} regels={2} />
+            <Veld label={t.nooitZelfstandig} waarde={data.grenzen.nooit} zet={(v) => setData((d) => ({ ...d, grenzen: { ...d.grenzen, nooit: v } }))} regels={2} />
             <Vinkjes
-              label="Wanneer moet de AI het gesprek altijd overdragen aan een medewerker?"
-              opties={["Klant vraagt om een medewerker", "Klacht of ontevreden klant", "Medische of specialistische vraag", "Terugbetaling", "Betalingsprobleem", "Uitzondering op de regels", "Onvoldoende informatie", "Probleem met een afspraak", "Technische storing"]}
+              label={t.situaties}
+              opties={OPTIES.situaties}
+              taal={taal}
               waarden={data.handoff.situaties}
               zet={(v) => setData((d) => ({ ...d, handoff: { ...d.handoff, situaties: v } }))}
             />
             <Keuze
-              label="Hoe wilt u een overdracht ontvangen?"
-              opties={["E-mail", "WhatsApp", "CRM-melding"]}
+              label={t.ontvangst}
+              opties={OPTIES.ontvangst}
+              taal={taal}
               waarde={data.handoff.ontvangst}
               zet={(v) => setData((d) => ({ ...d, handoff: { ...d.handoff, ontvangst: v } }))}
             />
-            <Veld label="Op welk adres of nummer?" waarde={data.handoff.ontvangstAdres} zet={(v) => setData((d) => ({ ...d, handoff: { ...d.handoff, ontvangstAdres: v } }))} />
+            <Veld label={t.ontvangstAdres} waarde={data.handoff.ontvangstAdres} zet={(v) => setData((d) => ({ ...d, handoff: { ...d.handoff, ontvangstAdres: v } }))} />
             <Vinkjes
-              label="Mag de AI deze zaken voorstellen?"
-              opties={["Een afspraak", "Een consult", "Een andere passende behandeling", "Pakketten", "Actieve promoties"]}
+              label={t.magVoorstellen}
+              opties={OPTIES.magVoorstellen}
+              taal={taal}
               waarden={data.commercieel.magVoorstellen}
               zet={(v) => setData((d) => ({ ...d, commercieel: { ...d.commercieel, magVoorstellen: v } }))}
             />
-            <Veld label="Wat mag de AI commercieel nooit voorstellen?" waarde={data.commercieel.nooit} zet={(v) => setData((d) => ({ ...d, commercieel: { ...d.commercieel, nooit: v } }))} regels={2} />
+            <Veld label={t.commercieelNooit} waarde={data.commercieel.nooit} zet={(v) => setData((d) => ({ ...d, commercieel: { ...d.commercieel, nooit: v } }))} regels={2} />
           </div>
         )}
 
         {stap === 5 && (
           <div className="grid gap-5">
+            <Keuze label={t.stijl} opties={OPTIES.stijl} taal={taal} waarde={data.toon.stijl} zet={(v) => zetVeld("toon", "stijl", v)} />
             <Keuze
-              label="Hoe communiceert u vandaag met klanten?"
-              opties={["Zeer informeel", "Informeel maar professioneel", "Warm en persoonlijk", "Neutraal en professioneel", "Formeel"]}
-              waarde={data.toon.stijl}
-              zet={(v) => zetVeld("toon", "stijl", v)}
-            />
-            <Keuze
-              label="Welke aanspreekvorm gebruikt de AI?"
-              hint="De AI houdt één vorm aan, want de teksten liggen vooraf vast."
-              opties={["Je", "U"]}
+              label={t.aanspreekvorm}
+              hint={t.aanspreekvormHint}
+              opties={OPTIES.aanspreekvorm}
+              taal={taal}
               waarde={data.toon.aanspreekvorm}
               zet={(v) => zetVeld("toon", "aanspreekvorm", v)}
             />
-            <Veld label="Woorden, uitdrukkingen of emoji die de AI wel of niet mag gebruiken" waarde={data.toon.woorden} zet={(v) => zetVeld("toon", "woorden", v)} regels={2} />
+            <Veld label={t.woorden} waarde={data.toon.woorden} zet={(v) => zetVeld("toon", "woorden", v)} regels={2} />
             <div className="grid gap-3">
-              <p className="text-sm font-medium text-foreground">Antwoorden op veelgestelde vragen</p>
-              <p className="text-xs text-muted-foreground">Vul in wat uw team vandaag zou antwoorden. Geldt het maar voor één behandeling, schrijf die er dan bij.</p>
+              <p className="text-sm font-medium text-foreground">{t.faqTitel}</p>
+              <p className="text-xs text-muted-foreground">{t.faqHint}</p>
               {([
-                ["Voorbereiding", "voorbereiding"],
-                ["Na de behandeling", "nazorg"],
-                ["Pijn of ongemak", "pijn"],
-                ["Resultaat en aantal sessies", "resultaat"],
-                ["Duur van een behandeling", "duur"],
-                ["Prijsindicatie", "prijsindicatie"],
-                ["Waar de AI hier nooit iets over mag zeggen", "nooit"],
+                [t.faqVoorbereiding, "voorbereiding"],
+                [t.faqNazorg, "nazorg"],
+                [t.faqPijn, "pijn"],
+                [t.faqResultaat, "resultaat"],
+                [t.faqDuur, "duur"],
+                [t.faqPrijsindicatie, "prijsindicatie"],
+                [t.faqNooit, "nooit"],
               ] as const).map(([label, veld]) => (
                 <Veld key={veld} label={label} waarde={data.faq[veld] as string} zet={(v) => zetVeld("faq", veld, v)} regels={2} />
               ))}
             </div>
             <div className="grid gap-3">
-              <p className="text-sm font-medium text-foreground">Vragen die uw team wekelijks krijgt</p>
+              <p className="text-sm font-medium text-foreground">{t.wekelijks}</p>
               {data.faq.vragen.map((v, i) => (
                 <Blok
                   key={i}
-                  titel={`Vraag ${i + 1}`}
+                  titel={t.vraagN(i + 1)}
                   kanWeg={data.faq.vragen.length > 1}
+                  wegTekst={t.verwijderen}
                   weg={() => setData((d) => ({ ...d, faq: { ...d.faq, vragen: d.faq.vragen.filter((_, j) => j !== i) } }))}
                 >
-                  <Veld label="Vraag" waarde={v.vraag} zet={(nieuw) => setData((d) => ({ ...d, faq: { ...d.faq, vragen: d.faq.vragen.map((x, j) => (i === j ? { ...x, vraag: nieuw } : x)) } }))} />
-                  <Veld label="Antwoord van uw team" waarde={v.antwoord} regels={2} zet={(nieuw) => setData((d) => ({ ...d, faq: { ...d.faq, vragen: d.faq.vragen.map((x, j) => (i === j ? { ...x, antwoord: nieuw } : x)) } }))} />
+                  <Veld label={t.vraag} waarde={v.vraag} zet={(nieuw) => setData((d) => ({ ...d, faq: { ...d.faq, vragen: d.faq.vragen.map((x, j) => (i === j ? { ...x, vraag: nieuw } : x)) } }))} />
+                  <Veld label={t.antwoordTeam} waarde={v.antwoord} regels={2} zet={(nieuw) => setData((d) => ({ ...d, faq: { ...d.faq, vragen: d.faq.vragen.map((x, j) => (i === j ? { ...x, antwoord: nieuw } : x)) } }))} />
                 </Blok>
               ))}
-              <Toevoegen tekst="Vraag toevoegen" klik={() => setData((d) => ({ ...d, faq: { ...d.faq, vragen: [...d.faq.vragen, leegVraag()] } }))} />
+              <Toevoegen tekst={t.vraagToevoegen} klik={() => setData((d) => ({ ...d, faq: { ...d.faq, vragen: [...d.faq.vragen, leegVraag()] } }))} />
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               {([
-                ["Agenda of boeking", "agenda"],
-                ["CRM of klantenbestand", "crm"],
-                ["Websiteplatform", "website"],
-                ["E-mail", "email"],
-                ["Betalingen", "betalingen"],
-                ["Andere systemen", "andere"],
+                [t.sysAgenda, "agenda"],
+                [t.sysCrm, "crm"],
+                [t.sysWebsite, "website"],
+                [t.sysEmail, "email"],
+                [t.sysBetalingen, "betalingen"],
+                [t.sysAndere, "andere"],
               ] as const).map(([label, veld]) => (
                 <Veld key={veld} label={label} waarde={data.systemen[veld]} zet={(v) => zetVeld("systemen", veld, v)} />
               ))}
             </div>
             <div className="grid gap-3">
-              <p className="text-sm font-medium text-foreground">Lopende promoties</p>
-              <p className="text-xs text-muted-foreground">Alleen invullen als er een actie loopt. Zo vermeldt de AI nooit een verlopen aanbieding.</p>
+              <p className="text-sm font-medium text-foreground">{t.promoties}</p>
+              <p className="text-xs text-muted-foreground">{t.promotiesHint}</p>
               {data.promoties.map((p, i) => (
-                <Blok key={i} titel={`Promotie ${i + 1}`} kanWeg weg={() => zet("promoties", data.promoties.filter((_, j) => j !== i))}>
+                <Blok key={i} titel={t.promotie(i + 1)} kanWeg wegTekst={t.verwijderen} weg={() => zet("promoties", data.promoties.filter((_, j) => j !== i))}>
                   {([
-                    ["Naam", "naam"],
-                    ["Geldig van", "van"],
-                    ["Geldig tot", "tot"],
-                    ["Behandeling", "behandeling"],
-                    ["Aanbod", "aanbod"],
-                    ["Voorwaarden", "voorwaarden"],
+                    [t.naam, "naam"],
+                    [t.geldigVan, "van"],
+                    [t.geldigTot, "tot"],
+                    [t.voorBehandeling, "behandeling"],
+                    [t.aanbod, "aanbod"],
+                    [t.voorwaarden, "voorwaarden"],
                   ] as const).map(([label, veld]) => (
                     <Veld key={veld} label={label} waarde={p[veld]} zet={(nieuw) => zet("promoties", data.promoties.map((x, j) => (i === j ? { ...x, [veld]: nieuw } : x)))} />
                   ))}
                 </Blok>
               ))}
-              <Toevoegen tekst="Promotie toevoegen" klik={() => zet("promoties", [...data.promoties, leegPromotie()])} />
+              <Toevoegen tekst={t.promotieToevoegen} klik={() => zet("promoties", [...data.promoties, leegPromotie()])} />
             </div>
           </div>
         )}
@@ -674,17 +687,20 @@ function IntakePage() {
         {stap === 6 && (
           <div className="grid gap-5">
             <div className="grid gap-2">
-              <p className="text-sm text-muted-foreground">Dit sturen we mee. Klopt er iets niet, ga dan terug naar die stap.</p>
+              <p className="text-sm text-muted-foreground">{t.nakijkenIntro}</p>
               <div className="grid gap-2 rounded-2xl border border-border bg-background/60 p-4 text-sm">
-                <p><span className="text-muted-foreground">Bedrijf:</span> {data.bedrijf.naam || "nog niet ingevuld"}</p>
-                <p><span className="text-muted-foreground">Vestigingen:</span> {data.vestigingen.filter((v) => v.naam).length}</p>
-                <p><span className="text-muted-foreground">Behandelingen:</span> {data.behandelingen.filter((b) => b.naam).length}</p>
-                <p><span className="text-muted-foreground">Consulten:</span> {data.consulten.filter((c) => c.naam).length}</p>
-                <p><span className="text-muted-foreground">Veelgestelde vragen:</span> {data.faq.vragen.filter((v) => v.vraag).length}</p>
-                <p><span className="text-muted-foreground">Aanspreekvorm:</span> {data.toon.aanspreekvorm || "nog niet gekozen"}</p>
+                <p><span className="text-muted-foreground">{t.sBedrijf}:</span> {data.bedrijf.naam || t.nogNietIngevuld}</p>
+                <p><span className="text-muted-foreground">{t.sVestigingen}:</span> {data.vestigingen.filter((v) => v.naam).length}</p>
+                <p><span className="text-muted-foreground">{t.sBehandelingen}:</span> {data.behandelingen.filter((b) => b.naam).length}</p>
+                <p><span className="text-muted-foreground">{t.sConsulten}:</span> {data.consulten.filter((c) => c.naam).length}</p>
+                <p><span className="text-muted-foreground">{t.sFaq}:</span> {data.faq.vragen.filter((v) => v.vraag).length}</p>
+                <p>
+                  <span className="text-muted-foreground">{t.sAanspreekvorm}:</span>{" "}
+                  {OPTIES.aanspreekvorm.find((o) => o.w === data.toon.aanspreekvorm)?.l[taal] ?? t.nogNietGekozen}
+                </p>
               </div>
             </div>
-            <Veld label="Iets dat we nog moeten weten?" waarde={data.klanten.extraInfo} zet={(v) => zetVeld("klanten", "extraInfo", v)} regels={3} />
+            <Veld label={t.extraInfo} waarde={data.klanten.extraInfo} zet={(v) => zetVeld("klanten", "extraInfo", v)} regels={3} />
             {fout && <p className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{fout}</p>}
             <button
               type="button"
@@ -692,7 +708,7 @@ function IntakePage() {
               disabled={verzenden}
               className="rounded-full bg-primary px-6 py-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-60"
             >
-              {alVerstuurd ? (opslaan ? "Opslaan…" : "Opslaan") : verzenden ? "Versturen…" : "Versturen"}
+              {alVerstuurd ? (opslaan ? t.opslaanBezig : t.opslaan) : verzenden ? t.versturenBezig : t.versturen}
             </button>
           </div>
         )}
@@ -706,12 +722,10 @@ function IntakePage() {
               : "border-amber-500/30 bg-amber-500/10 text-foreground"
           }`}
         >
-          {bijgewerkt.gelukt
-            ? `Opgeslagen om ${bijgewerkt.om}. Uw AI-receptionist gebruikt de nieuwe informatie vanaf nu.`
-            : `Opgeslagen om ${bijgewerkt.om}, maar uw AI-receptionist kon nog niet bijgewerkt worden. Wij bekijken het en laten het u weten.`}
+          {bijgewerkt.gelukt ? t.bijgewerkt(bijgewerkt.om) : t.nietBijgewerkt(bijgewerkt.om)}
         </p>
       )}
-      {fout && stap !== STAPPEN.length - 1 && (
+      {fout && !laatste && (
         <p className="mt-5 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{fout}</p>
       )}
 
@@ -722,16 +736,16 @@ function IntakePage() {
           disabled={stap === 0}
           className="rounded-full border border-border px-5 py-2.5 text-sm text-foreground transition-colors hover:border-primary disabled:opacity-40"
         >
-          Vorige
+          {t.vorige}
         </button>
         <span className={`text-center text-xs ${nietOpgeslagen ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}>
           {nietOpgeslagen
-            ? "U hebt iets gewijzigd. Klik op Opslaan om uw AI-receptionist bij te werken."
+            ? t.gewijzigd
             : opServer
-            ? `Bewaard om ${bewaard ?? ""}, u kunt later verder op elk toestel`
+            ? t.bewaardServer(bewaard ?? "")
             : bewaard
-            ? `Bewaard op dit apparaat om ${bewaard}`
-            : "Uw antwoorden blijven bewaard"}
+            ? t.bewaardToestel(bewaard)
+            : t.blijftBewaard}
         </span>
         <div className="flex items-center gap-2">
           {alVerstuurd && !laatste && (
@@ -741,19 +755,23 @@ function IntakePage() {
               disabled={opslaan}
               className="rounded-full border border-primary px-5 py-2.5 text-sm font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-50"
             >
-              {opslaan ? "Opslaan…" : "Opslaan"}
+              {opslaan ? t.opslaanBezig : t.opslaan}
             </button>
           )}
           <button
             type="button"
-            onClick={() => naarStap(Math.min(STAPPEN.length - 1, stap + 1))}
+            onClick={() => naarStap(Math.min(STAPPEN_AANTAL - 1, stap + 1))}
             disabled={laatste}
             className="rounded-full bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-40"
           >
-            Volgende
+            {t.volgende}
           </button>
         </div>
       </div>
+
+      <Voettekst t={t} />
     </main>
   );
 }
+
+const STAPPEN_AANTAL = TEKSTEN.nl.stappen.length;

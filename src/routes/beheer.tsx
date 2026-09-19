@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { TALEN, deFr, isTaal, type Taal } from "@/lib/intake-teksten";
 
 export const Route = createFileRoute("/beheer")({
   head: () => ({
@@ -59,7 +60,9 @@ const AANGEMAAKT_NAMEN: Record<string, string> = {
   keuzeknoppen: "keuzeknoppen",
 };
 
-const intakeLink = (code: string) => `https://qorelabs.io/intake/${code}`;
+// De taal gaat mee in de link, zodat de kliniek het formulier meteen in haar eigen taal ziet.
+const intakePad = (code: string, taal: Taal) => `/intake/${code}${taal === "nl" ? "" : `?taal=${taal}`}`;
+const intakeLink = (code: string, taal: Taal) => `https://qorelabs.io${intakePad(code, taal)}`;
 
 const maakCode = (naam: string) => {
   const kern = naam
@@ -75,35 +78,120 @@ const maakCode = (naam: string) => {
   return `${kern || "kliniek"}-${staart}`;
 };
 
-const berichtWhatsapp = (k: Kliniek) =>
-  [
-    `Hallo, zoals besproken stuur ik de vragenlijst voor de AI-receptionist van ${k.clinic_naam || "uw kliniek"}.`,
-    "",
-    "We hebben hem alvast zo ver mogelijk ingevuld met de informatie van uw website, dus u hoeft vooral na te kijken en aan te vullen.",
-    "Invullen duurt ongeveer 30 minuten. U kunt tussendoor stoppen: uw antwoorden blijven bewaard en u gaat later verder via dezelfde link.",
-    "",
-    intakeLink(k.code),
-    "",
-    "Weet u iets niet zeker, laat het dan open. Wij vullen niets zelf in en de AI verzint nooit iets.",
-  ].join("\n");
+const BERICHTEN: Record<Taal, { whatsapp: (naam: string, link: string) => string; email: (naam: string, link: string) => string }> = {
+  nl: {
+    whatsapp: (naam, link) =>
+      [
+        `Hallo, zoals besproken stuur ik de vragenlijst voor de AI-receptionist van ${naam || "uw kliniek"}.`,
+        "",
+        "We hebben hem alvast zo ver mogelijk ingevuld met de informatie van uw website, dus u hoeft vooral na te kijken en aan te vullen.",
+        "Invullen duurt ongeveer 30 minuten. U kunt tussendoor stoppen: uw antwoorden blijven bewaard en u gaat later verder via dezelfde link.",
+        "",
+        link,
+        "",
+        "Weet u iets niet zeker, laat het dan open. Wij vullen niets zelf in en de AI verzint nooit iets.",
+      ].join("\n"),
+    email: (naam, link) =>
+      [
+        `Onderwerp: Vragenlijst AI-receptionist ${naam}`.trim(),
+        "",
+        "Beste,",
+        "",
+        `Zoals besproken vindt u hieronder de vragenlijst voor de AI-receptionist van ${naam || "uw kliniek"}.`,
+        "We hebben hem alvast zo ver mogelijk ingevuld met de informatie van uw website, dus u hoeft vooral na te kijken en aan te vullen.",
+        "",
+        `Uw link: ${link}`,
+        "",
+        "Invullen duurt ongeveer 30 minuten. U kunt tussendoor stoppen: uw antwoorden blijven bewaard en u gaat later verder via dezelfde link.",
+        "Weet u iets niet zeker, laat het dan open. Wij vullen niets zelf in en de AI verzint nooit iets.",
+        "",
+        "Met vriendelijke groet,",
+        "QoreLabs",
+      ].join("\n"),
+  },
+  fr: {
+    whatsapp: (naam, link) =>
+      [
+        `Bonjour, comme convenu, voici le questionnaire pour la réceptionniste IA ${naam ? deFr(naam) : "de votre clinique"}.`,
+        "",
+        "Nous l'avons déjà pré-rempli autant que possible avec les informations de votre site web : il vous suffit surtout de vérifier et de compléter.",
+        "Comptez environ 30 minutes. Vous pouvez vous arrêter à tout moment : vos réponses sont enregistrées et vous reprenez plus tard via le même lien.",
+        "",
+        link,
+        "",
+        "En cas de doute, laissez le champ vide. Nous ne remplissons rien à votre place et l'IA n'invente jamais rien.",
+      ].join("\n"),
+    email: (naam, link) =>
+      [
+        `Objet : Questionnaire réceptionniste IA ${naam}`.trim(),
+        "",
+        "Bonjour,",
+        "",
+        `Comme convenu, vous trouverez ci-dessous le questionnaire pour la réceptionniste IA ${naam ? deFr(naam) : "de votre clinique"}.`,
+        "Nous l'avons déjà pré-rempli autant que possible avec les informations de votre site web : il vous suffit surtout de vérifier et de compléter.",
+        "",
+        `Votre lien : ${link}`,
+        "",
+        "Comptez environ 30 minutes. Vous pouvez vous arrêter à tout moment : vos réponses sont enregistrées et vous reprenez plus tard via le même lien.",
+        "En cas de doute, laissez le champ vide. Nous ne remplissons rien à votre place et l'IA n'invente jamais rien.",
+        "",
+        "Bien cordialement,",
+        "QoreLabs",
+      ].join("\n"),
+  },
+  en: {
+    whatsapp: (naam, link) =>
+      [
+        `Hello, as discussed, here is the questionnaire for ${naam ? `${naam}'s` : "your clinic's"} AI receptionist.`,
+        "",
+        "We've already filled in as much as we could from your website, so you mainly need to check and complete it.",
+        "It takes about 30 minutes. You can stop at any time: your answers are saved and you can continue later via the same link.",
+        "",
+        link,
+        "",
+        "If you're unsure about something, leave it blank. We don't fill anything in for you and the AI never makes anything up.",
+      ].join("\n"),
+    email: (naam, link) =>
+      [
+        `Subject: AI receptionist questionnaire ${naam}`.trim(),
+        "",
+        "Hello,",
+        "",
+        `As discussed, below you'll find the questionnaire for ${naam ? `${naam}'s` : "your clinic's"} AI receptionist.`,
+        "We've already filled in as much as we could from your website, so you mainly need to check and complete it.",
+        "",
+        `Your link: ${link}`,
+        "",
+        "It takes about 30 minutes. You can stop at any time: your answers are saved and you can continue later via the same link.",
+        "If you're unsure about something, leave it blank. We don't fill anything in for you and the AI never makes anything up.",
+        "",
+        "Kind regards,",
+        "QoreLabs",
+      ].join("\n"),
+  },
+};
 
-const berichtEmail = (k: Kliniek) =>
-  [
-    `Onderwerp: Vragenlijst AI-receptionist ${k.clinic_naam || ""}`.trim(),
-    "",
-    "Beste,",
-    "",
-    `Zoals besproken vindt u hieronder de vragenlijst voor de AI-receptionist van ${k.clinic_naam || "uw kliniek"}.`,
-    "We hebben hem alvast zo ver mogelijk ingevuld met de informatie van uw website, dus u hoeft vooral na te kijken en aan te vullen.",
-    "",
-    `Uw link: ${intakeLink(k.code)}`,
-    "",
-    "Invullen duurt ongeveer 30 minuten. U kunt tussendoor stoppen: uw antwoorden blijven bewaard en u gaat later verder via dezelfde link.",
-    "Weet u iets niet zeker, laat het dan open. Wij vullen niets zelf in en de AI verzint nooit iets.",
-    "",
-    "Met vriendelijke groet,",
-    "QoreLabs",
-  ].join("\n");
+const TALEN_OPSLAG = "qore-beheer-talen";
+
+function TaalKnopjes({ taal, kies }: { taal: Taal; kies: (t: Taal) => void }) {
+  return (
+    <div className="flex items-center gap-1 rounded-full border border-border p-1">
+      {TALEN.map((t) => (
+        <button
+          key={t.code}
+          type="button"
+          onClick={() => kies(t.code)}
+          aria-pressed={taal === t.code}
+          className={`rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors ${
+            taal === t.code ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          {t.naam}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 function Knop({
   children,
@@ -168,6 +256,20 @@ function BeheerPagina() {
   const [verslag, setVerslag] = useState<Verslag | null>(null);
   const [omzetten, setOmzetten] = useState<string | null>(null);
 
+  const [talen, setTalen] = useState<Record<string, Taal>>({});
+  const [nieuwTaal, setNieuwTaal] = useState<Taal>("nl");
+  const taalVan = (code: string): Taal => talen[code] ?? "nl";
+  const zetTaal = (code: string, taal: Taal) =>
+    setTalen((oud) => {
+      const nieuw = { ...oud, [code]: taal };
+      try {
+        localStorage.setItem(TALEN_OPSLAG, JSON.stringify(nieuw));
+      } catch {
+        // Niet kunnen onthouden is geen probleem; de taal staat dan standaard op NL.
+      }
+      return nieuw;
+    });
+
   const [nieuwNaam, setNieuwNaam] = useState("");
   const [nieuwWebsite, setNieuwWebsite] = useState("");
   const [bezig, setBezig] = useState(false);
@@ -196,6 +298,17 @@ function BeheerPagina() {
       setFout("De lijst laden lukte niet. Probeer het zo nog eens.");
     } finally {
       setLaden(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      const opgeslagen = JSON.parse(localStorage.getItem(TALEN_OPSLAG) ?? "{}");
+      const geldig: Record<string, Taal> = {};
+      for (const [code, taal] of Object.entries(opgeslagen)) if (isTaal(taal)) geldig[code] = taal;
+      setTalen(geldig);
+    } catch {
+      // Geen opgeslagen talen: alles standaard in het Nederlands.
     }
   }, []);
 
@@ -302,7 +415,7 @@ function BeheerPagina() {
         const antwoord = await fetch(VOORBEREIDEN_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ code, naam, website: nieuwWebsite.trim() }),
+          body: JSON.stringify({ code, naam, website: nieuwWebsite.trim(), taal: nieuwTaal }),
         });
         if (!antwoord.ok) throw new Error(`status ${antwoord.status}`);
         setMelding("Voorbereid. Kijk het concept na voor u de link verstuurt.");
@@ -315,6 +428,7 @@ function BeheerPagina() {
         if (!antwoord.ok) throw new Error(`status ${antwoord.status}`);
         setMelding("Leeg formulier aangemaakt.");
       }
+      zetTaal(code, nieuwTaal);
       setNieuwNaam("");
       setNieuwWebsite("");
       await ophalen(sleutel);
@@ -400,6 +514,11 @@ function BeheerPagina() {
         <div className="grid gap-4 sm:grid-cols-2">
           <Invoer label="Naam van de kliniek" waarde={nieuwNaam} zet={setNieuwNaam} plaats="Kliniek ABC" />
           <Invoer label="Website" waarde={nieuwWebsite} zet={setNieuwWebsite} plaats="https://" />
+        </div>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <span className="text-sm font-medium text-foreground">Taal van de kliniek</span>
+          <TaalKnopjes taal={nieuwTaal} kies={setNieuwTaal} />
+          <span className="text-xs text-muted-foreground">Het formulier en het bericht komen in deze taal.</span>
         </div>
         <p className="mt-3 text-xs text-muted-foreground">
           Met AI voorbereiden leest de website uit en vult het formulier alvast in. Dat duurt ongeveer een minuut. Daarna kijkt u het na.
@@ -536,22 +655,37 @@ function BeheerPagina() {
 
               <div className="mt-4 flex flex-wrap gap-2">
                 <a
-                  href={`/intake/${k.code}`}
+                  href={intakePad(k.code, taalVan(k.code))}
                   target="_blank"
                   rel="noreferrer"
                   className="rounded-full border border-border px-4 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary"
                 >
                   Formulier openen
                 </a>
-                <Knop klik={() => kopieer(intakeLink(k.code), "Link")}>Link kopiëren</Knop>
-                <Knop klik={() => kopieer(berichtWhatsapp(k), "WhatsApp-bericht")}>Bericht voor WhatsApp</Knop>
-                <Knop klik={() => kopieer(berichtEmail(k), "E-mail")}>Bericht voor e-mail</Knop>
+                <Knop klik={() => kopieer(intakeLink(k.code, taalVan(k.code)), "Link")}>Link kopiëren</Knop>
+                <Knop
+                  klik={() =>
+                    kopieer(BERICHTEN[taalVan(k.code)].whatsapp(k.clinic_naam ?? "", intakeLink(k.code, taalVan(k.code))), "WhatsApp-bericht")
+                  }
+                >
+                  Bericht voor WhatsApp
+                </Knop>
+                <Knop
+                  klik={() => kopieer(BERICHTEN[taalVan(k.code)].email(k.clinic_naam ?? "", intakeLink(k.code, taalVan(k.code))), "E-mail")}
+                >
+                  Bericht voor e-mail
+                </Knop>
                 <Knop soort="hoofd" klik={() => omzettenNaarChatbot(k)} uit={omzetten !== null}>
                   {omzetten === k.code ? "Bezig…" : "Omzetten naar chatbot"}
                 </Knop>
               </div>
 
               <div className="mt-4 flex flex-wrap items-center gap-2">
+                <span className="text-xs text-muted-foreground">Taal van formulier en bericht:</span>
+                <TaalKnopjes taal={taalVan(k.code)} kies={(t) => zetTaal(k.code, t)} />
+              </div>
+
+              <div className="mt-3 flex flex-wrap items-center gap-2">
                 <span className="text-xs text-muted-foreground">Status:</span>
                 {STATUSSEN.map((s) => (
                   <button
