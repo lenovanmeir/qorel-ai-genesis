@@ -219,7 +219,12 @@ function IntakePage() {
   const [verzonden, setVerzonden] = useState(false);
   const [fout, setFout] = useState<string | null>(null);
   const [opServer, setOpServer] = useState(false);
+  const [serverStatus, setServerStatus] = useState<string | null>(null);
+  const [opslaan, setOpslaan] = useState(false);
+  const [bijgewerkt, setBijgewerkt] = useState<{ gelukt: boolean; om: string } | null>(null);
   const geladen = useRef(false);
+  // Wat de chatbot nu gebruikt, om te zien of er iets gewijzigd is dat nog niet opgeslagen werd.
+  const laatstOpgeslagen = useRef<string | null>(null);
 
   // Eerst wat op dit toestel staat, daarna de bewaarde versie van de server (die telt).
   useEffect(() => {
@@ -235,8 +240,13 @@ function IntakePage() {
         const response = await fetch(`${API_URL}?code=${encodeURIComponent(code)}`);
         if (!response.ok) throw new Error(`status ${response.status}`);
         const gevonden = await response.json();
+        if (!gestopt && gevonden?.intake) {
+          setServerStatus(gevonden.intake.status ?? null);
+        }
         if (!gestopt && gevonden?.intake?.data) {
-          setData({ ...leegData(), ...gevonden.intake.data });
+          const vanServer = { ...leegData(), ...gevonden.intake.data };
+          setData(vanServer);
+          laatstOpgeslagen.current = JSON.stringify(vanServer);
           setOpServer(true);
         }
       } catch {
@@ -264,32 +274,61 @@ function IntakePage() {
   const zetVeld = (sectie: "bedrijf" | "klanten" | "afspraken" | "annuleren" | "toon" | "faq" | "systemen", veld: string, waarde: string) =>
     setData((d) => ({ ...d, [sectie]: { ...(d[sectie] as Record<string, unknown>), [veld]: waarde } }) as Data);
 
-  const bewaarOpServer = async (status: "concept" | "ingevuld") => {
+  // Heeft de kliniek al eens verstuurd, dan werkt "Opslaan" voortaan meteen de AI-receptionist bij.
+  const alVerstuurd = serverStatus === "ingevuld" || serverStatus === "gebouwd" || serverStatus === "live";
+  const nietOpgeslagen = alVerstuurd && laatstOpgeslagen.current !== null && laatstOpgeslagen.current !== JSON.stringify(data);
+
+  const bewaarOpServer = async (soort: "tussendoor" | "versturen") => {
+    const body =
+      soort === "tussendoor"
+        ? { code, data }
+        : { code, data, bijwerken: true, ...(alVerstuurd ? {} : { status: "ingevuld" }) };
     const response = await fetch(API_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code, status, data }),
+      body: JSON.stringify(body),
     });
     if (!response.ok) throw new Error(`status ${response.status}`);
     setOpServer(true);
+    return (await response.json().catch(() => ({}))) as { bijgewerkt?: boolean | null };
   };
 
   // Bij elke stap bewaren we tussentijds, zodat niets verloren gaat bij het sluiten van het venster.
   const naarStap = (nieuw: number) => {
     setStap(nieuw);
-    if (geladen.current) bewaarOpServer("concept").catch(() => setOpServer(false));
+    if (geladen.current) bewaarOpServer("tussendoor").catch(() => setOpServer(false));
   };
 
   const versturen = async () => {
     setVerzenden(true);
     setFout(null);
     try {
-      await bewaarOpServer("ingevuld");
+      await bewaarOpServer("versturen");
+      laatstOpgeslagen.current = JSON.stringify(data);
+      setServerStatus("ingevuld");
       setVerzonden(true);
     } catch {
       setFout("Versturen lukte niet. Probeer het zo nog eens, of laat ons weten dat het niet lukt. Uw antwoorden blijven bewaard op dit apparaat.");
     } finally {
       setVerzenden(false);
+    }
+  };
+
+  const opslaanEnBijwerken = async () => {
+    setOpslaan(true);
+    setFout(null);
+    setBijgewerkt(null);
+    try {
+      const antwoord = await bewaarOpServer("versturen");
+      laatstOpgeslagen.current = JSON.stringify(data);
+      setBijgewerkt({
+        gelukt: antwoord.bijgewerkt === true,
+        om: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      });
+    } catch {
+      setFout("Opslaan lukte niet. Probeer het zo nog eens. Uw wijzigingen blijven bewaard op dit apparaat.");
+    } finally {
+      setOpslaan(false);
     }
   };
 
@@ -300,6 +339,10 @@ function IntakePage() {
         <p className="text-sm text-muted-foreground">
           We bouwen uw AI-receptionist en testen hem op alle kanalen. Daarna krijgt u hem zelf te zien om uit te proberen. Pas na uw
           goedkeuring gaat hij live. Ontbreekt er nog iets, dan nemen we contact met u op.
+        </p>
+        <p className="text-sm text-muted-foreground">
+          Wilt u later iets aanpassen, zoals een prijs of openingsuren? Open dan gewoon dezelfde link, pas het aan en klik op Opslaan.
+          Uw AI-receptionist gebruikt het meteen.
         </p>
       </main>
     );
@@ -315,8 +358,9 @@ function IntakePage() {
           Vragenlijst voor uw AI-receptionist
         </h1>
         <p className="text-sm text-muted-foreground">
-          Invullen duurt ongeveer 30 minuten. U kunt tussendoor stoppen: uw antwoorden blijven bewaard op dit apparaat en u gaat later
-          gewoon verder via dezelfde link. Weet u iets niet zeker, laat het dan open. Wij vullen niets zelf in en de AI verzint nooit iets.
+          {alVerstuurd
+            ? "Pas aan wat nodig is en klik op Opslaan. Uw AI-receptionist gebruikt de nieuwe informatie meteen. Weet u iets niet zeker, laat het dan open: de AI verzint nooit iets."
+            : "Invullen duurt ongeveer 30 minuten. U kunt tussendoor stoppen: uw antwoorden blijven bewaard op dit apparaat en u gaat later gewoon verder via dezelfde link. Weet u iets niet zeker, laat het dan open. Wij vullen niets zelf in en de AI verzint nooit iets."}
         </p>
       </header>
 
@@ -644,15 +688,32 @@ function IntakePage() {
             {fout && <p className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{fout}</p>}
             <button
               type="button"
-              onClick={versturen}
+              onClick={alVerstuurd ? opslaanEnBijwerken : versturen}
               disabled={verzenden}
               className="rounded-full bg-primary px-6 py-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-60"
             >
-              {verzenden ? "Versturen…" : "Versturen"}
+              {alVerstuurd ? (opslaan ? "Opslaan…" : "Opslaan") : verzenden ? "Versturen…" : "Versturen"}
             </button>
           </div>
         )}
       </div>
+
+      {bijgewerkt && (
+        <p
+          className={`mt-5 rounded-xl border px-4 py-3 text-sm ${
+            bijgewerkt.gelukt
+              ? "border-primary/30 bg-primary/10 text-foreground"
+              : "border-amber-500/30 bg-amber-500/10 text-foreground"
+          }`}
+        >
+          {bijgewerkt.gelukt
+            ? `Opgeslagen om ${bijgewerkt.om}. Uw AI-receptionist gebruikt de nieuwe informatie vanaf nu.`
+            : `Opgeslagen om ${bijgewerkt.om}, maar uw AI-receptionist kon nog niet bijgewerkt worden. Wij bekijken het en laten het u weten.`}
+        </p>
+      )}
+      {fout && stap !== STAPPEN.length - 1 && (
+        <p className="mt-5 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{fout}</p>
+      )}
 
       <div className="mt-5 flex items-center justify-between gap-3">
         <button
@@ -663,21 +724,35 @@ function IntakePage() {
         >
           Vorige
         </button>
-        <span className="text-xs text-muted-foreground">
-          {opServer
+        <span className={`text-center text-xs ${nietOpgeslagen ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}>
+          {nietOpgeslagen
+            ? "U hebt iets gewijzigd. Klik op Opslaan om uw AI-receptionist bij te werken."
+            : opServer
             ? `Bewaard om ${bewaard ?? ""}, u kunt later verder op elk toestel`
             : bewaard
             ? `Bewaard op dit apparaat om ${bewaard}`
             : "Uw antwoorden blijven bewaard"}
         </span>
-        <button
-          type="button"
-          onClick={() => naarStap(Math.min(STAPPEN.length - 1, stap + 1))}
-          disabled={laatste}
-          className="rounded-full bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-40"
-        >
-          Volgende
-        </button>
+        <div className="flex items-center gap-2">
+          {alVerstuurd && !laatste && (
+            <button
+              type="button"
+              onClick={opslaanEnBijwerken}
+              disabled={opslaan}
+              className="rounded-full border border-primary px-5 py-2.5 text-sm font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-50"
+            >
+              {opslaan ? "Opslaan…" : "Opslaan"}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => naarStap(Math.min(STAPPEN.length - 1, stap + 1))}
+            disabled={laatste}
+            className="rounded-full bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-40"
+          >
+            Volgende
+          </button>
+        </div>
       </div>
     </main>
   );

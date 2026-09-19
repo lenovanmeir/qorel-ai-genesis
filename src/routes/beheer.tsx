@@ -25,7 +25,12 @@ type Kliniek = {
   website: string | null;
   status: Status;
   updated_at: string;
+  submitted_at?: string | null;
 };
+
+// De kliniek paste iets aan maar klikte daarna niet op Opslaan: de chatbot gebruikt het dus nog niet.
+const nietOpgeslagen = (k: Kliniek) =>
+  !!k.submitted_at && new Date(k.updated_at).getTime() - new Date(k.submitted_at).getTime() > 60_000;
 
 const STATUSSEN: { waarde: Status; naam: string; uitleg: string; kleur: string }[] = [
   { waarde: "concept", naam: "Concept klaar", uitleg: "Voorbereid, nog niet verstuurd", kleur: "bg-secondary text-muted-foreground" },
@@ -514,9 +519,19 @@ function BeheerPagina() {
                     bijgewerkt {new Date(k.updated_at).toLocaleString("nl-BE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
                   </p>
                 </div>
-                <span className={`rounded-full px-3 py-1 text-xs font-medium ${info.kleur}`} title={info.uitleg}>
-                  {info.naam}
-                </span>
+                <div className="flex flex-wrap items-center gap-2">
+                  {nietOpgeslagen(k) && (
+                    <span
+                      className="rounded-full bg-amber-500/15 px-3 py-1 text-xs font-medium text-amber-600 dark:text-amber-400"
+                      title="De kliniek wijzigde iets maar klikte niet op Opslaan. Omzetten neemt de wijziging mee."
+                    >
+                      Wijziging niet opgeslagen
+                    </span>
+                  )}
+                  <span className={`rounded-full px-3 py-1 text-xs font-medium ${info.kleur}`} title={info.uitleg}>
+                    {info.naam}
+                  </span>
+                </div>
               </div>
 
               <div className="mt-4 flex flex-wrap gap-2">
