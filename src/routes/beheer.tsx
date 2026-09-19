@@ -387,7 +387,14 @@ function BeheerPagina() {
         body: JSON.stringify({ code: k.code, sleutel }),
       });
       if (!antwoord.ok) throw new Error(`status ${antwoord.status}`);
-      const uitkomst = await antwoord.json();
+      // Bij een fout antwoordt n8n ook met status 200, maar dan zonder "ok": de chatbot is dan niet gewijzigd.
+      const uitkomst = await antwoord.json().catch(() => ({}));
+      if (uitkomst?.ok !== true) {
+        setFout(
+          "Omzetten lukte niet: de chatbot is niet gewijzigd. Meestal ontbreekt er nog een vestiging of een behandeling in het formulier.",
+        );
+        return;
+      }
       setVerslag(uitkomst);
       await ophalen(sleutel);
     } catch {
