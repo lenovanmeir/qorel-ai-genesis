@@ -152,11 +152,30 @@ export function ChatWidget() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lang]);
 
+  // The clinic's choices barely ever change, so we keep them in the browser for a day.
+  // Without this, every visitor who opens the chat costs an n8n execution.
   useEffect(() => {
+    const opslag = `qore-keuzes-${CLINIC_ID}`;
+    const dag = 24 * 60 * 60 * 1000;
+    try {
+      const bewaard = JSON.parse(localStorage.getItem(opslag) ?? "null");
+      if (bewaard && Date.now() - bewaard.op < dag && Array.isArray(bewaard.options)) {
+        setChoices(bewaard.options.slice(0, 3));
+        return;
+      }
+    } catch {
+      // No stored copy, or no access to storage: we just ask n8n.
+    }
     fetch(CHOICES_URL)
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
-        if (data && Array.isArray(data.options)) setChoices(data.options.slice(0, 3));
+        if (!data || !Array.isArray(data.options)) return;
+        setChoices(data.options.slice(0, 3));
+        try {
+          localStorage.setItem(opslag, JSON.stringify({ op: Date.now(), options: data.options }));
+        } catch {
+          // Storing is a bonus; the chat works either way.
+        }
       })
       .catch(() => {
         // Without choices the chat still works; the visitor just types.
