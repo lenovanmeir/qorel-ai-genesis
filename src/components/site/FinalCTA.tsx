@@ -24,9 +24,6 @@ export function FinalCTA() {
               {t.final.ctaPrimary}
               <span className="transition-transform group-hover:translate-x-0.5">→</span>
             </a>
-            <a href="#work" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
-              {t.final.ctaSecondary}
-            </a>
           </div>
 
           <p className="mt-8 text-xs text-muted-foreground/80">{t.final.footnote}</p>

@@ -15,7 +15,6 @@ export function Nav() {
   const links = [
     { label: t.nav.services, href: "#services" },
     { label: t.nav.process, href: "#process" },
-    { label: t.nav.work, href: "#work" },
     { label: t.nav.why, href: "#why" },
   ];
 

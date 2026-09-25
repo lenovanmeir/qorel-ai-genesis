@@ -5,7 +5,6 @@ export function Footer() {
   const links: [string, string][] = [
     [t.footer.links.services, "#services"],
     [t.footer.links.process, "#process"],
-    [t.footer.links.work, "#work"],
     [t.footer.links.why, "#why"],
   ];
   return (

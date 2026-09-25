@@ -21,16 +21,8 @@ export function Hero() {
       </div>
 
       <div className="mx-auto max-w-7xl px-5 text-center">
-        <div className="animate-fade-up inline-flex items-center gap-2 rounded-full glass px-4 py-1.5 text-xs text-muted-foreground">
-          <span className="relative flex h-1.5 w-1.5">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
-            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-primary" />
-          </span>
-          {t.hero.badge}
-        </div>
-
         <h1
-          className="animate-fade-up mx-auto mt-6 max-w-5xl text-balance text-5xl font-semibold leading-[1.05] tracking-tight md:text-7xl"
+          className="animate-fade-up mx-auto max-w-5xl text-balance text-5xl font-semibold leading-[1.05] tracking-tight md:text-7xl"
           style={{ animationDelay: "0.1s" }}
         >
           <span className="text-gradient">{t.hero.title1}</span>
@@ -57,23 +49,11 @@ export function Hero() {
             <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
           </a>
           <a
-            href="#work"
+            href="#services"
             className="inline-flex items-center gap-2 rounded-full glass px-7 py-3.5 text-sm font-medium transition-colors hover:bg-white/5"
           >
             {t.hero.ctaSecondary}
           </a>
-        </div>
-
-        <div
-          className="animate-fade-up mt-12 flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-xs uppercase tracking-[0.2em] text-muted-foreground/70"
-          style={{ animationDelay: "0.4s" }}
-        >
-          {t.hero.trust.map((item, i) => (
-            <span key={i} className="flex items-center gap-x-8">
-              {i > 0 && <span className="h-1 w-1 rounded-full bg-muted-foreground/30" />}
-              <span>{item}</span>
-            </span>
-          ))}
         </div>
 
         <div

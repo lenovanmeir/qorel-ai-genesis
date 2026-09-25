@@ -5,9 +5,7 @@ import { Problem } from "@/components/site/Problem";
 import { Process } from "@/components/site/Process";
 import { LoomOffer } from "@/components/site/LoomOffer";
 import { Services } from "@/components/site/Services";
-import { CaseStudies } from "@/components/site/CaseStudies";
 import { WhyUs } from "@/components/site/WhyUs";
-import { Testimonials } from "@/components/site/Testimonials";
 import { FinalCTA } from "@/components/site/FinalCTA";
 import { Footer } from "@/components/site/Footer";
 
@@ -43,9 +41,7 @@ function Home() {
       <Process />
       <LoomOffer />
       <Services />
-      <CaseStudies />
       <WhyUs />
-      <Testimonials />
       <FinalCTA />
       <Footer />
     </main>

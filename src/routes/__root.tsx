@@ -10,8 +10,6 @@ import {
 
 import appCss from "../styles.css?url";
 import { I18nProvider } from "@/i18n/I18nProvider";
-import { ChatWidget } from "@/components/site/ChatWidget";
-import { useRouterState } from "@tanstack/react-router";
 
 function NotFoundComponent() {
   return (
@@ -75,18 +73,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
+      { title: "QoreLabs" },
       { name: "description", content: "QoreLabs.io builds AI-powered websites that convert visitors into customers and automate business operations." },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
+      { name: "author", content: "QoreLabs" },
+      { property: "og:title", content: "QoreLabs" },
       { property: "og:description", content: "QoreLabs.io builds AI-powered websites that convert visitors into customers and automate business operations." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
-      { name: "twitter:site", content: "@Lovable" },
-      { name: "twitter:title", content: "Lovable App" },
+      { name: "twitter:title", content: "QoreLabs" },
       { name: "twitter:description", content: "QoreLabs.io builds AI-powered websites that convert visitors into customers and automate business operations." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/0b239c17-d0dd-4682-ac1e-9c6f61c99940/id-preview-c9aa13f0--ca2c04cc-018a-4478-a0cc-1c876e6cd68f.lovable.app-1779846359053.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/0b239c17-d0dd-4682-ac1e-9c6f61c99940/id-preview-c9aa13f0--ca2c04cc-018a-4478-a0cc-1c876e6cd68f.lovable.app-1779846359053.png" },
     ],
     links: [
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -123,15 +118,11 @@ function RootShell({ children }: { children: React.ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const hideWidget =
-    pathname.startsWith("/chat-test") || pathname.startsWith("/intake") || pathname.startsWith("/beheer");
 
   return (
     <QueryClientProvider client={queryClient}>
       <I18nProvider>
         <Outlet />
-        {!hideWidget && <ChatWidget />}
       </I18nProvider>
     </QueryClientProvider>
   );
