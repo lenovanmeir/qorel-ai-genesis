@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AestheticsRouteImport } from './routes/aesthetics'
 import { Route as BeheerRouteImport } from './routes/beheer'
 import { Route as ChatTestRouteImport } from './routes/chat-test'
 import { Route as PrivacyRouteImport } from './routes/privacy'
@@ -18,6 +19,11 @@ import { Route as IntakeCodeRouteImport } from './routes/intake.$code'
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AestheticsRoute = AestheticsRouteImport.update({
+  id: '/aesthetics',
+  path: '/aesthetics',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BeheerRoute = BeheerRouteImport.update({
@@ -43,6 +49,7 @@ const IntakeCodeRoute = IntakeCodeRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/aesthetics': typeof AestheticsRoute
   '/beheer': typeof BeheerRoute
   '/chat-test': typeof ChatTestRoute
   '/privacy': typeof PrivacyRoute
@@ -50,6 +57,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/aesthetics': typeof AestheticsRoute
   '/beheer': typeof BeheerRoute
   '/chat-test': typeof ChatTestRoute
   '/privacy': typeof PrivacyRoute
@@ -58,6 +66,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/aesthetics': typeof AestheticsRoute
   '/beheer': typeof BeheerRoute
   '/chat-test': typeof ChatTestRoute
   '/privacy': typeof PrivacyRoute
@@ -65,14 +74,34 @@ export interface FileRoutesById {
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/beheer' | '/chat-test' | '/privacy' | '/intake/$code'
+  fullPaths:
+    | '/'
+    | '/aesthetics'
+    | '/beheer'
+    | '/chat-test'
+    | '/privacy'
+    | '/intake/$code'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/beheer' | '/chat-test' | '/privacy' | '/intake/$code'
-  id: '__root__' | '/' | '/beheer' | '/chat-test' | '/privacy' | '/intake/$code'
+  to:
+    | '/'
+    | '/aesthetics'
+    | '/beheer'
+    | '/chat-test'
+    | '/privacy'
+    | '/intake/$code'
+  id:
+    | '__root__'
+    | '/'
+    | '/aesthetics'
+    | '/beheer'
+    | '/chat-test'
+    | '/privacy'
+    | '/intake/$code'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AestheticsRoute: typeof AestheticsRoute
   BeheerRoute: typeof BeheerRoute
   ChatTestRoute: typeof ChatTestRoute
   PrivacyRoute: typeof PrivacyRoute
@@ -86,6 +115,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/aesthetics': {
+      id: '/aesthetics'
+      path: '/aesthetics'
+      fullPath: '/aesthetics'
+      preLoaderRoute: typeof AestheticsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/beheer': {
@@ -121,6 +157,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AestheticsRoute: AestheticsRoute,
   BeheerRoute: BeheerRoute,
   ChatTestRoute: ChatTestRoute,
   PrivacyRoute: PrivacyRoute,
