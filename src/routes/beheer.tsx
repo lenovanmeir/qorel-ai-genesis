@@ -62,7 +62,7 @@ const AANGEMAAKT_NAMEN: Record<string, string> = {
 
 // De taal gaat mee in de link, zodat de kliniek het formulier meteen in haar eigen taal ziet.
 const intakePad = (code: string, taal: Taal) => `/intake/${code}${taal === "nl" ? "" : `?taal=${taal}`}`;
-const intakeLink = (code: string, taal: Taal) => `https://qorelabs.io${intakePad(code, taal)}`;
+const intakeLink = (code: string, taal: Taal) => `https://qoreaesthetics.com${intakePad(code, taal)}`;
 
 const maakCode = (naam: string) => {
   const kern = naam
