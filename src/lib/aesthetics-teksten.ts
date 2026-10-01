@@ -65,9 +65,14 @@ type Teksten = {
   final: { eyebrow: string; h2a: string; h2b: string; lede: string };
   form: {
     kliniek: string;
-    site: string;
-    sitePlaceholder: string;
-    contact: string;
+    website: string;
+    websitePlaceholder: string;
+    instagram: string;
+    email: string;
+    emailPlaceholder: string;
+    telefoon: string;
+    optioneel: string;
+    siteOfInstagram: string;
     submit: string;
     busy: string;
     done: (kliniek: string) => string;
@@ -76,7 +81,7 @@ type Teksten = {
     errorB: string;
     note: string;
     mailSubject: string;
-    mailBody: (v: { kliniek: string; site: string; contact: string }) => string;
+    mailBody: (v: { kliniek: string; website: string; instagram: string; email: string; telefoon: string }) => string;
   };
   demo: {
     aria: string;
@@ -220,9 +225,14 @@ const nl: Teksten = {
   },
   form: {
     kliniek: "Naam van je kliniek",
-    site: "Website of Instagram",
-    sitePlaceholder: "jouwkliniek.be of @jouwkliniek",
-    contact: "E-mail of WhatsApp-nummer",
+    website: "Website van je kliniek",
+    websitePlaceholder: "jouwkliniek.be",
+    instagram: "Instagram",
+    email: "E-mail",
+    emailPlaceholder: "naam@jouwkliniek.be",
+    telefoon: "Gsm-nummer",
+    optioneel: "optioneel",
+    siteOfInstagram: "Vul je website of je Instagram in.",
     submit: "Bouw mijn gratis demo →",
     busy: "Even geduld…",
     done: (k) => `Bedankt! We bouwen je demo met de info van ${k || "je kliniek"} en sturen je binnen 48 uur de link.`,
@@ -231,7 +241,7 @@ const nl: Teksten = {
     errorB: ", dan bouwen we je demo zo.",
     note: "Binnen 48 uur je demo. Geen betaalgegevens. Je spreekt altijd met Leno, de oprichter.",
     mailSubject: "Gratis demo",
-    mailBody: (v) => `Graag een gratis demo.\n\nKliniek: ${v.kliniek}\nWebsite of Instagram: ${v.site}\nContact: ${v.contact}`,
+    mailBody: (v) => `Graag een gratis demo.\n\nKliniek: ${v.kliniek}\nWebsite: ${v.website}\nInstagram: ${v.instagram}\nE-mail: ${v.email}\nGsm: ${v.telefoon}`,
   },
   demo: {
     aria: "Demo van een Instagram-gesprek",
@@ -379,9 +389,14 @@ const fr: Teksten = {
   },
   form: {
     kliniek: "Nom de votre clinique",
-    site: "Site web ou Instagram",
-    sitePlaceholder: "votreclinique.be ou @votreclinique",
-    contact: "E-mail ou numéro WhatsApp",
+    website: "Site web de votre clinique",
+    websitePlaceholder: "votreclinique.be",
+    instagram: "Instagram",
+    email: "E-mail",
+    emailPlaceholder: "nom@votreclinique.be",
+    telefoon: "Numéro de GSM",
+    optioneel: "facultatif",
+    siteOfInstagram: "Indiquez votre site web ou votre Instagram.",
     submit: "Construire ma démo gratuite →",
     busy: "Un instant…",
     done: (k) => `Merci ! Nous construisons votre démo avec les infos de ${k || "votre clinique"} et vous envoyons le lien sous 48 heures.`,
@@ -390,7 +405,7 @@ const fr: Teksten = {
     errorB: ", et nous construisons votre démo.",
     note: "Votre démo sous 48 heures. Aucune donnée de paiement. Vous parlez toujours avec Leno, le fondateur.",
     mailSubject: "Démo gratuite",
-    mailBody: (v) => `Je souhaite une démo gratuite.\n\nClinique : ${v.kliniek}\nSite web ou Instagram : ${v.site}\nContact : ${v.contact}`,
+    mailBody: (v) => `Je souhaite une démo gratuite.\n\nClinique : ${v.kliniek}\nSite web : ${v.website}\nInstagram : ${v.instagram}\nE-mail : ${v.email}\nGSM : ${v.telefoon}`,
   },
   demo: {
     aria: "Démo d'une conversation Instagram",
@@ -538,9 +553,14 @@ const en: Teksten = {
   },
   form: {
     kliniek: "Your clinic's name",
-    site: "Website or Instagram",
-    sitePlaceholder: "yourclinic.com or @yourclinic",
-    contact: "Email or WhatsApp number",
+    website: "Your clinic's website",
+    websitePlaceholder: "yourclinic.com",
+    instagram: "Instagram",
+    email: "Email",
+    emailPlaceholder: "name@yourclinic.com",
+    telefoon: "Mobile number",
+    optioneel: "optional",
+    siteOfInstagram: "Enter your website or your Instagram.",
     submit: "Build my free demo →",
     busy: "One moment…",
     done: (k) => `Thank you! We're building your demo with ${k || "your clinic"}'s info and will send you the link within 48 hours.`,
@@ -549,7 +569,7 @@ const en: Teksten = {
     errorB: " and we'll build your demo.",
     note: "Your demo within 48 hours. No payment details. You always speak with Leno, the founder.",
     mailSubject: "Free demo",
-    mailBody: (v) => `I'd like a free demo.\n\nClinic: ${v.kliniek}\nWebsite or Instagram: ${v.site}\nContact: ${v.contact}`,
+    mailBody: (v) => `I'd like a free demo.\n\nClinic: ${v.kliniek}\nWebsite: ${v.website}\nInstagram: ${v.instagram}\nEmail: ${v.email}\nMobile: ${v.telefoon}`,
   },
   demo: {
     aria: "Demo of an Instagram conversation",

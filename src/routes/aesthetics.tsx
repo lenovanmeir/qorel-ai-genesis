@@ -409,20 +409,29 @@ function DemoAanvraag() {
   const { lang } = useI18n();
   const t = AESTHETICS_TEKSTEN[lang];
   const [status, setStatus] = useState<Status>("leeg");
-  const [velden, setVelden] = useState({ kliniek: "", site: "", contact: "" });
+  const [siteFout, setSiteFout] = useState(false);
+  const [velden, setVelden] = useState({ kliniek: "", website: "", instagram: "", email: "", telefoon: "" });
+  // Hidden from people, but bots fill it in; the n8n workflow drops those requests.
+  const [bedrijfsadres, setBedrijfsadres] = useState("");
 
-  const zet = (naam: keyof typeof velden) => (e: React.ChangeEvent<HTMLInputElement>) =>
+  const zet = (naam: keyof typeof velden) => (e: React.ChangeEvent<HTMLInputElement>) => {
     setVelden((v) => ({ ...v, [naam]: e.target.value }));
+    if (naam === "website" || naam === "instagram") setSiteFout(false);
+  };
 
   async function verstuur(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!e.currentTarget.reportValidity()) return;
+    if (!velden.website.trim() && !velden.instagram.trim()) {
+      setSiteFout(true);
+      return;
+    }
     setStatus("bezig");
     try {
       const antwoord = await fetch(DEMO_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...velden, bron: "qoreaesthetics.com", taal: lang }),
+        body: JSON.stringify({ ...velden, bedrijfsadres, bron: "qoreaesthetics.com", taal: lang }),
       });
       setStatus(antwoord.ok ? "klaar" : "fout");
     } catch {
@@ -450,13 +459,66 @@ function DemoAanvraag() {
         {t.form.kliniek}
         <input name="kliniek" autoComplete="organization" required value={velden.kliniek} onChange={zet("kliniek")} />
       </label>
-      <label>
-        {t.form.site}
-        <input name="site" placeholder={t.form.sitePlaceholder} required value={velden.site} onChange={zet("site")} />
-      </label>
-      <label>
-        {t.form.contact}
-        <input name="contact" required value={velden.contact} onChange={zet("contact")} />
+      <div className="form-row">
+        <label>
+          {t.form.website}
+          <input
+            name="website"
+            inputMode="url"
+            autoComplete="url"
+            placeholder={t.form.websitePlaceholder}
+            value={velden.website}
+            onChange={zet("website")}
+            aria-invalid={siteFout}
+          />
+        </label>
+        <label>
+          <span>
+            {t.form.instagram} <small>({t.form.optioneel})</small>
+          </span>
+          <input
+            name="instagram"
+            placeholder="@"
+            value={velden.instagram}
+            onChange={zet("instagram")}
+            aria-invalid={siteFout}
+          />
+        </label>
+      </div>
+      {siteFout && (
+        <p className="field-error" role="alert">
+          {t.form.siteOfInstagram}
+        </p>
+      )}
+      <div className="form-row">
+        <label>
+          {t.form.email}
+          <input
+            name="email"
+            type="email"
+            autoComplete="email"
+            required
+            placeholder={t.form.emailPlaceholder}
+            value={velden.email}
+            onChange={zet("email")}
+          />
+        </label>
+        <label>
+          <span>
+            {t.form.telefoon} <small>({t.form.optioneel})</small>
+          </span>
+          <input name="telefoon" type="tel" autoComplete="tel" value={velden.telefoon} onChange={zet("telefoon")} />
+        </label>
+      </div>
+      <label className="hp" aria-hidden="true">
+        Bedrijfsadres
+        <input
+          name="bedrijfsadres"
+          tabIndex={-1}
+          autoComplete="off"
+          value={bedrijfsadres}
+          onChange={(e) => setBedrijfsadres(e.target.value)}
+        />
       </label>
       <button className="btn primary" type="submit" disabled={status === "bezig"}>
         {status === "bezig" ? t.form.busy : t.form.submit}
