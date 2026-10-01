@@ -7,7 +7,7 @@ export const Route = createFileRoute("/intake/$code")({
   validateSearch: (zoek: Record<string, unknown>): { taal?: Taal } => (isTaal(zoek.taal) ? { taal: zoek.taal } : {}),
   head: () => ({
     meta: [
-      { title: "QoreLabs intake" },
+      { title: "Qore Aesthetics intake" },
       { name: "description", content: "Vragenlijst voor uw AI-receptionist." },
       { name: "robots", content: "noindex, nofollow" },
     ],
@@ -420,7 +420,7 @@ function IntakePage() {
     <main lang={taal} className="mx-auto min-h-screen max-w-3xl px-5 py-10">
       <header className="mb-6 flex flex-col gap-2">
         <div className="flex items-center justify-between gap-3">
-          <span className="text-xs font-medium uppercase tracking-[0.2em] text-primary">QoreLabs intake</span>
+          <span className="text-xs font-medium uppercase tracking-[0.2em] text-primary">Qore Aesthetics intake</span>
           <TaalKiezer taal={taal} kies={kiesTaal} />
         </div>
         <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">

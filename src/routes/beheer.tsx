@@ -106,7 +106,7 @@ const BERICHTEN: Record<Taal, { whatsapp: (naam: string, link: string) => string
         "Weet u iets niet zeker, laat het dan open. Wij vullen niets zelf in en de AI verzint nooit iets.",
         "",
         "Met vriendelijke groet,",
-        "QoreLabs",
+        "Qore Aesthetics",
       ].join("\n"),
   },
   fr: {
@@ -136,7 +136,7 @@ const BERICHTEN: Record<Taal, { whatsapp: (naam: string, link: string) => string
         "En cas de doute, laissez le champ vide. Nous ne remplissons rien à votre place et l'IA n'invente jamais rien.",
         "",
         "Bien cordialement,",
-        "QoreLabs",
+        "Qore Aesthetics",
       ].join("\n"),
   },
   en: {
@@ -166,7 +166,7 @@ const BERICHTEN: Record<Taal, { whatsapp: (naam: string, link: string) => string
         "If you're unsure about something, leave it blank. We don't fill anything in for you and the AI never makes anything up.",
         "",
         "Kind regards,",
-        "QoreLabs",
+        "Qore Aesthetics",
       ].join("\n"),
   },
 };
