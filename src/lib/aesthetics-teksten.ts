@@ -61,7 +61,7 @@ type Teksten = {
     giveTitle: string;
     give: string[];
   };
-  faq: { eyebrow: string; h2: string; items: { v: string; a: string }[] };
+  faq: { eyebrow: string; h2: string; items: { v: string; a: string; link?: string }[] };
   final: { eyebrow: string; h2a: string; h2b: string; lede: string };
   form: {
     kliniek: string;
@@ -80,6 +80,9 @@ type Teksten = {
     errorLink: string;
     errorB: string;
     note: string;
+    callA: string;
+    callLink: string;
+    doneCall: string;
     mailSubject: string;
     mailBody: (v: { kliniek: string; website: string; instagram: string; email: string; telefoon: string }) => string;
   };
@@ -214,6 +217,7 @@ const nl: Teksten = {
       { v: "Werkt het met mijn agenda?", a: "Ja. Je receptioniste stuurt klanten via een link naar de online agenda die je al gebruikt." },
       { v: "Wat als we meer vragen krijgen dan ons pakket?", a: "Dan verwittigen we je eerst. Je receptioniste blijft gewoon antwoorden, en samen kijken we of een groter pakket beter past." },
       { v: "Hoe betaal ik?", a: "De opstart per factuur, via overschrijving of een betaal-QR. We starten zodra je betaling binnen is. Het maandbedrag loopt daarna automatisch via kaart." },
+      { v: "Kan ik eerst met iemand praten?", a: "Ja. Plan een gratis gesprek van 20 minuten met Leno, de oprichter. Je stelt je vragen en we bekijken samen of het bij je kliniek past.", link: "Plan een gesprek →" },
       { v: "Kan ik opzeggen?", a: "Maand-tot-maand: elke maand. Jaarcontract: het loopt tot het einde van de 12 maanden." },
     ],
   },
@@ -240,6 +244,9 @@ const nl: Teksten = {
     errorLink: "per e-mail",
     errorB: ", dan bouwen we je demo zo.",
     note: "Binnen 48 uur je demo. Geen betaalgegevens. Je spreekt altijd met Leno, de oprichter.",
+    callA: "Liever eerst even praten?",
+    callLink: "Plan een gesprek van 20 minuten met Leno →",
+    doneCall: "Wil je de demo straks samen overlopen? Plan alvast een gesprek →",
     mailSubject: "Gratis demo",
     mailBody: (v) => `Graag een gratis demo.\n\nKliniek: ${v.kliniek}\nWebsite: ${v.website}\nInstagram: ${v.instagram}\nE-mail: ${v.email}\nGsm: ${v.telefoon}`,
   },
@@ -378,6 +385,7 @@ const fr: Teksten = {
       { v: "Est-ce que cela fonctionne avec mon agenda ?", a: "Oui. Votre réceptionniste envoie les patients vers l'agenda en ligne que vous utilisez déjà, via un lien." },
       { v: "Et si nous recevons plus de questions que notre formule ?", a: "Nous vous prévenons d'abord. Votre réceptionniste continue de répondre, et nous voyons ensemble si une formule plus grande convient mieux." },
       { v: "Comment je paie ?", a: "La mise en place sur facture, par virement ou QR de paiement. Nous commençons dès réception de votre paiement. Le montant mensuel est ensuite prélevé automatiquement par carte." },
+      { v: "Puis-je d'abord parler à quelqu'un ?", a: "Oui. Planifiez un appel gratuit de 20 minutes avec Leno, le fondateur. Vous posez vos questions et nous voyons ensemble si cela convient à votre clinique.", link: "Planifier un appel →" },
       { v: "Puis-je résilier ?", a: "Sans engagement : chaque mois. Contrat annuel : il court jusqu'à la fin des 12 mois." },
     ],
   },
@@ -404,6 +412,9 @@ const fr: Teksten = {
     errorLink: "par e-mail",
     errorB: ", et nous construisons votre démo.",
     note: "Votre démo sous 48 heures. Aucune donnée de paiement. Vous parlez toujours avec Leno, le fondateur.",
+    callA: "Vous préférez d'abord en parler ?",
+    callLink: "Planifiez un appel de 20 minutes avec Leno →",
+    doneCall: "Envie de parcourir la démo ensemble ? Planifiez déjà un appel →",
     mailSubject: "Démo gratuite",
     mailBody: (v) => `Je souhaite une démo gratuite.\n\nClinique : ${v.kliniek}\nSite web : ${v.website}\nInstagram : ${v.instagram}\nE-mail : ${v.email}\nGSM : ${v.telefoon}`,
   },
@@ -542,6 +553,7 @@ const en: Teksten = {
       { v: "Does it work with my booking system?", a: "Yes. Your receptionist sends patients to the online booking system you already use, via a link." },
       { v: "What if we get more questions than our package covers?", a: "We let you know first. Your receptionist keeps answering, and together we look at whether a bigger package fits better." },
       { v: "How do I pay?", a: "The setup by invoice, via bank transfer or a payment QR code. We start once your payment is in. The monthly amount is then charged automatically by card." },
+      { v: "Can I talk to someone first?", a: "Yes. Book a free 20-minute call with Leno, the founder. Ask your questions and we'll look together at whether it fits your clinic.", link: "Book a call →" },
       { v: "Can I cancel?", a: "Month-to-month: every month. Annual contract: it runs until the end of the 12 months." },
     ],
   },
@@ -568,6 +580,9 @@ const en: Teksten = {
     errorLink: "by email",
     errorB: " and we'll build your demo.",
     note: "Your demo within 48 hours. No payment details. You always speak with Leno, the founder.",
+    callA: "Rather talk first?",
+    callLink: "Book a 20-minute call with Leno →",
+    doneCall: "Want to go through the demo together? Book a call now →",
     mailSubject: "Free demo",
     mailBody: (v) => `I'd like a free demo.\n\nClinic: ${v.kliniek}\nWebsite: ${v.website}\nInstagram: ${v.instagram}\nEmail: ${v.email}\nMobile: ${v.telefoon}`,
   },

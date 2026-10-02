@@ -10,6 +10,8 @@ import { AESTHETICS_TEKSTEN } from "@/lib/aesthetics-teksten";
 const SITE_URL = "https://qoreaesthetics.com/";
 const DEMO_URL = "https://qorelabs.app.n8n.cloud/webhook/qa-demo-aanvraag";
 const SUPPORT_EMAIL = "support@qorelabs.io";
+// Intro call with Leno; a secondary path next to the demo for owners who want to talk first.
+const CALL_URL = "https://cal.com/leno-qore/qore-aesthetics";
 const INSTAGRAM_URL = "https://www.instagram.com/qoreaesthetics/";
 
 const TITLE = "Qore Aesthetics · AI-receptioniste voor esthetische klinieken";
@@ -251,7 +253,14 @@ function AestheticsHome() {
               {t.faq.items.map((q) => (
                 <details key={q.v}>
                   <summary>{q.v}</summary>
-                  <p>{q.a}</p>
+                  <p>
+                    {q.a}{" "}
+                    {q.link && (
+                      <a className="call-link" href={CALL_URL} target="_blank" rel="noopener">
+                        {q.link}
+                      </a>
+                    )}
+                  </p>
                 </details>
               ))}
             </div>
@@ -439,12 +448,22 @@ function DemoAanvraag() {
     }
   }
 
+  // Cal.com fills in the booking form from these, so the clinic does not type everything twice.
+  const belLink = `${CALL_URL}?${new URLSearchParams({
+    email: velden.email,
+    kliniek: velden.kliniek,
+    website: velden.website || velden.instagram,
+  }).toString()}`;
+
   if (status === "klaar") {
     return (
       <div className="demo-form" id="aanvraag">
         <p className="form-done" role="status">
           {t.form.done(velden.kliniek)}
         </p>
+        <a className="call-link center" href={belLink} target="_blank" rel="noopener">
+          {t.form.doneCall}
+        </a>
       </div>
     );
   }
@@ -530,6 +549,12 @@ function DemoAanvraag() {
         </p>
       )}
       <p className="form-note">{t.form.note}</p>
+      <p className="form-call">
+        {t.form.callA}{" "}
+        <a className="call-link" href={CALL_URL} target="_blank" rel="noopener">
+          {t.form.callLink}
+        </a>
+      </p>
     </form>
   );
 }
