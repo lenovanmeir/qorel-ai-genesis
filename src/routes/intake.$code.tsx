@@ -4,7 +4,11 @@ import { OPTIES, TALEN, TEKSTEN, isTaal, type Optie, type Taal } from "@/lib/int
 
 export const Route = createFileRoute("/intake/$code")({
   // De taal komt mee in de link (?taal=fr), zodat een Franstalige kliniek meteen in het Frans begint.
-  validateSearch: (zoek: Record<string, unknown>): { taal?: Taal } => (isTaal(zoek.taal) ? { taal: zoek.taal } : {}),
+  // ?nakijk=... staat alleen in Leno's Telegram-link: dan kan hij de demo na het nakijken versturen.
+  validateSearch: (zoek: Record<string, unknown>): { taal?: Taal; nakijk?: string } => ({
+    ...(isTaal(zoek.taal) ? { taal: zoek.taal } : {}),
+    ...(typeof zoek.nakijk === "string" && /^[0-9a-f]{32}$/.test(zoek.nakijk) ? { nakijk: zoek.nakijk } : {}),
+  }),
   head: () => ({
     meta: [
       { title: "Qore Aesthetics intake" },
@@ -17,6 +21,7 @@ export const Route = createFileRoute("/intake/$code")({
 
 // n8n bewaart de antwoorden en geeft ze terug, zodat de eigenaar op elk toestel verder kan.
 const API_URL = "https://qorelabs.app.n8n.cloud/webhook/qore-intake";
+const DEMO_URL = "https://qorelabs.app.n8n.cloud/webhook/qa-demo";
 
 type Vestiging = {
   naam: string;
@@ -231,11 +236,11 @@ function Voettekst({ t }: { t: (typeof TEKSTEN)[Taal] }) {
 
 function IntakePage() {
   const { code } = Route.useParams();
-  const { taal: taalUitLink } = Route.useSearch();
+  const { taal: taalUitLink, nakijk } = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
   const taal: Taal = taalUitLink ?? "nl";
   const t = TEKSTEN[taal];
-  const kiesTaal = (nieuw: Taal) => navigate({ search: { taal: nieuw }, replace: true });
+  const kiesTaal = (nieuw: Taal) => navigate({ search: (s) => ({ ...s, taal: nieuw }), replace: true });
 
   const [stap, setStap] = useState(0);
   const [data, setData] = useState<Data>(leegData());
@@ -247,6 +252,8 @@ function IntakePage() {
   const [serverStatus, setServerStatus] = useState<string | null>(null);
   const [opslaan, setOpslaan] = useState(false);
   const [bijgewerkt, setBijgewerkt] = useState<{ gelukt: boolean; om: string } | null>(null);
+  const [demo, setDemo] = useState<"klaar" | "bezig" | "verstuurd" | "al" | "fout">("klaar");
+  const [demoTot, setDemoTot] = useState<string | null>(null);
   const geladen = useRef(false);
   // Wat de chatbot nu gebruikt, om te zien of er iets gewijzigd is dat nog niet opgeslagen werd.
   const laatstOpgeslagen = useRef<string | null>(null);
@@ -312,7 +319,7 @@ function IntakePage() {
     const body =
       soort === "tussendoor"
         ? { code, data }
-        : { code, data, bijwerken: true, ...(alVerstuurd ? {} : { status: "ingevuld" }) };
+        : { code, data, bijwerken: true, ...(alVerstuurd ? {} : { status: "ingevuld" }), ...(nakijk ? { stil: true } : {}) };
     const response = await fetch(API_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -402,6 +409,32 @@ function IntakePage() {
     }
   };
 
+  // Leno: eerst opslaan (zodat de demo zijn wijzigingen kent), dan de demolink naar de kliniek mailen.
+  const demoVersturen = async () => {
+    setDemo("bezig");
+    setFout(null);
+    try {
+      const opgeslagen = await bewaarOpServer("versturen");
+      if (opgeslagen.leeg) {
+        setFout(t.leeg);
+        setDemo("klaar");
+        return;
+      }
+      laatstOpgeslagen.current = JSON.stringify(data);
+      const response = await fetch(DEMO_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ actie: "versturen", code, nakijk }),
+      });
+      const antwoord = (await response.json().catch(() => ({}))) as { ok?: boolean; al_verstuurd?: boolean; verloopt_op?: string };
+      if (!response.ok || !antwoord.ok) throw new Error(`status ${response.status}`);
+      setDemoTot(antwoord.verloopt_op ?? null);
+      setDemo(antwoord.al_verstuurd ? "al" : "verstuurd");
+    } catch {
+      setDemo("fout");
+    }
+  };
+
   if (verzonden) {
     return (
       <main lang={taal} className="mx-auto flex min-h-screen max-w-2xl flex-col items-center justify-center gap-4 px-5 py-16 text-center">
@@ -427,6 +460,12 @@ function IntakePage() {
           {naam ? t.titelMetNaam(naam) : t.titel}
         </h1>
         <p className="text-sm text-muted-foreground">{alVerstuurd ? t.uitlegBewerken : t.uitlegNieuw}</p>
+        {nakijk && (
+          <p className="rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-foreground">
+            Nakijkmodus voor Leno: de kliniek ziet deze melding niet. Pas aan wat nodig is en klik bij de laatste stap op
+            "Klaar – verstuur demo naar de kliniek".
+          </p>
+        )}
       </header>
 
       <div className="mb-6 flex flex-wrap items-center gap-2">
@@ -747,6 +786,32 @@ function IntakePage() {
             >
               {alVerstuurd ? (opslaan ? t.opslaanBezig : t.opslaan) : verzenden ? t.versturenBezig : t.versturen}
             </button>
+            {nakijk && (
+              <div className="grid gap-2 rounded-2xl border border-primary/30 bg-primary/5 p-4 text-sm">
+                {demo === "verstuurd" || demo === "al" ? (
+                  <p className="text-foreground">
+                    {demo === "al" ? "Deze demo was al verstuurd." : "✅ Verstuurd. De kliniek kreeg een mail met haar demolink."}
+                    {demoTot &&
+                      ` De demo loopt tot ${new Date(demoTot).toLocaleDateString("nl-BE", { weekday: "long", day: "numeric", month: "long" })}.`}
+                  </p>
+                ) : (
+                  <>
+                    <p className="text-muted-foreground">
+                      Alles nagekeken? Dan slaan we je wijzigingen op en mailen we de kliniek haar demolink. De 7 dagen starten nu.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={demoVersturen}
+                      disabled={demo === "bezig"}
+                      className="rounded-full bg-primary px-6 py-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-60"
+                    >
+                      {demo === "bezig" ? "Bezig met versturen…" : "Klaar – verstuur demo naar de kliniek"}
+                    </button>
+                    {demo === "fout" && <p className="text-destructive">Versturen lukte niet. Probeer opnieuw of laat het Claude bekijken.</p>}
+                  </>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>

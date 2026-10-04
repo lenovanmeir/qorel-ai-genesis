@@ -72,7 +72,6 @@ type Teksten = {
     emailPlaceholder: string;
     telefoon: string;
     optioneel: string;
-    siteOfInstagram: string;
     submit: string;
     busy: string;
     done: (kliniek: string) => string;
@@ -225,7 +224,7 @@ const nl: Teksten = {
     eyebrow: "Gratis demo",
     h2a: "Zie jouw receptioniste",
     h2b: "vóór je iets betaalt.",
-    lede: "Laat je website of Instagram achter. Wij bouwen een demo met jouw eigen info en sturen je de link.",
+    lede: "Laat je website achter. Wij bouwen een demo met jouw eigen info en sturen je de link.",
   },
   form: {
     kliniek: "Naam van je kliniek",
@@ -236,7 +235,6 @@ const nl: Teksten = {
     emailPlaceholder: "naam@jouwkliniek.be",
     telefoon: "Gsm-nummer",
     optioneel: "optioneel",
-    siteOfInstagram: "Vul je website of je Instagram in.",
     submit: "Bouw mijn gratis demo →",
     busy: "Even geduld…",
     done: (k) => `Bedankt! We bouwen je demo met de info van ${k || "je kliniek"} en sturen je binnen 48 uur de link.`,
@@ -393,7 +391,7 @@ const fr: Teksten = {
     eyebrow: "Démo gratuite",
     h2a: "Voyez votre réceptionniste",
     h2b: "avant de payer quoi que ce soit.",
-    lede: "Laissez-nous votre site ou votre Instagram. Nous construisons une démo avec vos propres infos et vous envoyons le lien.",
+    lede: "Laissez-nous votre site web. Nous construisons une démo avec vos propres infos et vous envoyons le lien.",
   },
   form: {
     kliniek: "Nom de votre clinique",
@@ -404,7 +402,6 @@ const fr: Teksten = {
     emailPlaceholder: "nom@votreclinique.be",
     telefoon: "Numéro de GSM",
     optioneel: "facultatif",
-    siteOfInstagram: "Indiquez votre site web ou votre Instagram.",
     submit: "Construire ma démo gratuite →",
     busy: "Un instant…",
     done: (k) => `Merci ! Nous construisons votre démo avec les infos de ${k || "votre clinique"} et vous envoyons le lien sous 48 heures.`,
@@ -561,7 +558,7 @@ const en: Teksten = {
     eyebrow: "Free demo",
     h2a: "See your receptionist",
     h2b: "before you pay anything.",
-    lede: "Leave your website or Instagram. We build a demo with your own info and send you the link.",
+    lede: "Leave your website. We build a demo with your own info and send you the link.",
   },
   form: {
     kliniek: "Your clinic's name",
@@ -572,7 +569,6 @@ const en: Teksten = {
     emailPlaceholder: "name@yourclinic.com",
     telefoon: "Mobile number",
     optioneel: "optional",
-    siteOfInstagram: "Enter your website or your Instagram.",
     submit: "Build my free demo →",
     busy: "One moment…",
     done: (k) => `Thank you! We're building your demo with ${k || "your clinic"}'s info and will send you the link within 48 hours.`,

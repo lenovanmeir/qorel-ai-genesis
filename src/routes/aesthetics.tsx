@@ -418,23 +418,16 @@ function DemoAanvraag() {
   const { lang } = useI18n();
   const t = AESTHETICS_TEKSTEN[lang];
   const [status, setStatus] = useState<Status>("leeg");
-  const [siteFout, setSiteFout] = useState(false);
   const [velden, setVelden] = useState({ kliniek: "", website: "", instagram: "", email: "", telefoon: "" });
   // Hidden from people, but bots fill it in; the n8n workflow drops those requests.
   const [bedrijfsadres, setBedrijfsadres] = useState("");
 
-  const zet = (naam: keyof typeof velden) => (e: React.ChangeEvent<HTMLInputElement>) => {
+  const zet = (naam: keyof typeof velden) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setVelden((v) => ({ ...v, [naam]: e.target.value }));
-    if (naam === "website" || naam === "instagram") setSiteFout(false);
-  };
 
   async function verstuur(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!e.currentTarget.reportValidity()) return;
-    if (!velden.website.trim() && !velden.instagram.trim()) {
-      setSiteFout(true);
-      return;
-    }
     setStatus("bezig");
     try {
       const antwoord = await fetch(DEMO_URL, {
@@ -452,7 +445,7 @@ function DemoAanvraag() {
   const belLink = `${CALL_URL}?${new URLSearchParams({
     email: velden.email,
     kliniek: velden.kliniek,
-    website: velden.website || velden.instagram,
+    website: velden.website,
   }).toString()}`;
 
   if (status === "klaar") {
@@ -485,10 +478,10 @@ function DemoAanvraag() {
             name="website"
             inputMode="url"
             autoComplete="url"
+            required
             placeholder={t.form.websitePlaceholder}
             value={velden.website}
             onChange={zet("website")}
-            aria-invalid={siteFout}
           />
         </label>
         <label>
@@ -500,15 +493,9 @@ function DemoAanvraag() {
             placeholder="@"
             value={velden.instagram}
             onChange={zet("instagram")}
-            aria-invalid={siteFout}
           />
         </label>
       </div>
-      {siteFout && (
-        <p className="field-error" role="alert">
-          {t.form.siteOfInstagram}
-        </p>
-      )}
       <div className="form-row">
         <label>
           {t.form.email}
