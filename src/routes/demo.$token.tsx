@@ -61,7 +61,9 @@ const TEKSTEN = {
     nietActief: "Deze demo is nog niet geactiveerd. Je krijgt een mail zodra hij klaarstaat.",
     verlopen: "Je demo is afgelopen.",
     op: "Je hebt al je demoberichten gebruikt.",
+    kiezen: "Wil je verder testen, of meteen bespreken hoe dit voor je kliniek werkt?",
     meerTijd: "Meer tijd vragen",
+    afspraak: "Plan een gesprek met Leno",
     gevraagd: "Gevraagd! Je krijgt een mail zodra je demo verlengd is.",
     fout: "Er liep iets mis. Probeer het zo opnieuw.",
     gesprek: "Wil je dit voor je kliniek, of samen overlopen?",
@@ -82,7 +84,9 @@ const TEKSTEN = {
     nietActief: "Cette démo n’est pas encore activée. Vous recevrez un e-mail dès qu’elle sera prête.",
     verlopen: "Votre démo est terminée.",
     op: "Vous avez utilisé tous vos messages de démo.",
+    kiezen: "Vous voulez continuer à tester, ou voir directement comment cela fonctionnerait pour votre clinique ?",
     meerTijd: "Demander plus de temps",
+    afspraak: "Planifier un appel avec Leno",
     gevraagd: "C’est demandé ! Vous recevrez un e-mail dès que votre démo sera prolongée.",
     fout: "Un problème est survenu. Réessayez dans un instant.",
     gesprek: "Vous voulez ceci pour votre clinique, ou la parcourir ensemble ?",
@@ -103,7 +107,9 @@ const TEKSTEN = {
     nietActief: "This demo isn't active yet. You'll get an e-mail as soon as it's ready.",
     verlopen: "Your demo has ended.",
     op: "You've used all your demo messages.",
+    kiezen: "Want to keep testing, or talk about how this would work for your clinic?",
     meerTijd: "Ask for more time",
+    afspraak: "Book a call with Leno",
     gevraagd: "Requested! You'll get an e-mail as soon as your demo is extended.",
     fout: "Something went wrong. Please try again in a moment.",
     gesprek: "Want this for your clinic, or go through it together?",
@@ -279,13 +285,19 @@ function DemoPagina() {
             ) : (
               <div className="demo-ended">
                 <p>{staat === "op" ? t.op : t.verlopen}</p>
-                {gevraagd ? (
-                  <p className="demo-count">{t.gevraagd}</p>
-                ) : (
-                  <button className="btn primary" type="button" onClick={() => void meerTijd()}>
-                    {t.meerTijd}
-                  </button>
-                )}
+                <p className="lede">{t.kiezen}</p>
+                <div className="demo-choices">
+                  {gevraagd ? (
+                    <p className="demo-count">{t.gevraagd}</p>
+                  ) : (
+                    <button className="btn" type="button" onClick={() => void meerTijd()}>
+                      {t.meerTijd}
+                    </button>
+                  )}
+                  <a className="btn primary" href={CALL_URL} target="_blank" rel="noopener">
+                    {t.afspraak}
+                  </a>
+                </div>
               </div>
             )}
             {melding && (

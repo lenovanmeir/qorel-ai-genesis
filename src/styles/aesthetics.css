@@ -231,3 +231,4 @@ html:has(.qa) {
 .qa .demo-input .btn { flex: none; }
 .qa .demo-ended { display: grid; gap: 12px; justify-items: center; text-align: center; border: 1px solid var(--line); border-radius: 14px; padding: 20px; }
 .qa .demo-ended p { margin: 0; }
+.qa .demo-choices { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
