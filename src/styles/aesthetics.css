@@ -232,3 +232,51 @@ html:has(.qa) {
 .qa .demo-ended { display: grid; gap: 12px; justify-items: center; text-align: center; border: 1px solid var(--line); border-radius: 14px; padding: 20px; }
 .qa .demo-ended p { margin: 0; }
 .qa .demo-choices { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+
+/* Leno's dashboard: qoreaesthetics.com/dashboard */
+.qa .dash { padding-bottom: 64px; }
+.qa .dash-badge { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.06em; color: var(--warm); border: 1px solid rgba(201, 167, 124, 0.4); border-radius: 999px; padding: 5px 10px; }
+.qa .dash-tabs { display: flex; gap: 6px; overflow-x: auto; border-bottom: 1px solid var(--line); margin-bottom: 24px; scrollbar-width: none; }
+.qa .dash-tabs button { flex: none; background: none; border: none; border-bottom: 2px solid transparent; color: var(--muted); font: inherit; font-size: 0.92rem; padding: 10px 12px; cursor: pointer; }
+.qa .dash-tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
+.qa .dash-section { display: grid; gap: 18px; padding-block: 0; border-top: none; }
+.qa .dash-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+.qa .dash-kpi { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; display: grid; gap: 4px; }
+.qa .dash-kpi span { font-size: 0.82rem; color: var(--muted); }
+.qa .dash-kpi b { font-family: var(--display); font-stretch: 78%; font-size: 2rem; font-weight: 800; line-height: 1.1; }
+.qa .dash-kpi small { font-family: var(--mono); font-size: 0.68rem; color: var(--accent-2); }
+.qa .dash-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; }
+@media (max-width: 860px) { .qa .dash-grid { grid-template-columns: 1fr; } }
+.qa .dash-card { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 20px 22px; min-width: 0; }
+.qa .dash-card h2 { font-size: 1.35rem; font-weight: 800; font-stretch: 80%; margin-bottom: 14px; }
+.qa .dash-card h3 { font-family: var(--body); font-size: 0.82rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); margin: 16px 0 6px; }
+.qa .dash-h2-spaced { margin-top: 22px; }
+.qa .dash-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.qa .dash-sub { margin: 0; color: var(--muted); font-size: 0.88rem; }
+.qa .dash-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.qa .dash-list button, .qa .dash-list.plain li { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 12px; text-align: left; background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; color: var(--text); font: inherit; }
+.qa .dash-list button { cursor: pointer; }
+.qa .dash-list button:hover { border-color: var(--accent); }
+.qa .dash-list b { display: block; font-size: 0.95rem; }
+.qa .dash-list small { display: block; color: var(--muted); font-size: 0.82rem; line-height: 1.4; }
+.qa .dash-pill { flex: none; font-style: normal; font-family: var(--mono); font-size: 0.68rem; padding: 4px 9px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.qa .dash-pill.accent { color: var(--accent-2); border-color: var(--accent-2); }
+.qa .dash-pill.ok { color: var(--ok); border-color: rgba(74, 222, 154, 0.4); }
+.qa .dash-pill.warn { color: var(--warm); border-color: rgba(201, 167, 124, 0.5); }
+.qa .dash-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.qa .dash-table th { text-align: left; font-weight: 600; color: var(--muted); font-size: 0.78rem; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+.qa .dash-table td { padding: 11px 10px; border-bottom: 1px solid var(--line); }
+.qa .dash-table tbody tr { cursor: pointer; }
+.qa .dash-table tbody tr:hover td { background: var(--surface-2); }
+.qa .dash-score { display: inline-grid; place-items: center; min-width: 38px; height: 26px; border-radius: 8px; background: rgba(99, 102, 255, 0.16); color: var(--accent-2); font-family: var(--mono); font-size: 0.8rem; }
+.qa .dash-score.big { min-width: 58px; height: 42px; font-size: 1.2rem; }
+.qa .dash-funnel { display: grid; gap: 10px; }
+.qa .dash-funnel-row { display: grid; grid-template-columns: 130px minmax(0, 1fr) 40px; gap: 12px; align-items: center; font-size: 0.9rem; }
+.qa .dash-funnel-row b { font-family: var(--mono); text-align: right; }
+.qa .dash-bar { height: 10px; background: var(--surface-2); border-radius: 999px; overflow: hidden; }
+.qa .dash-bar i { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
+.qa .dash-note { margin: 0; color: var(--muted); font-size: 0.92rem; }
+.qa .dash-bullets { margin: 0; padding-left: 18px; color: var(--text); font-size: 0.92rem; }
+.qa .dash-call { margin: 12px 0 0; font-family: var(--mono); font-size: 0.8rem; color: var(--warm); }
+.qa .dash-back { background: none; border: none; color: var(--accent-2); font: inherit; cursor: pointer; padding: 0; justify-self: start; }
+@media (max-width: 560px) { .qa .dash-table { font-size: 0.82rem; } .qa .dash-table th, .qa .dash-table td { padding: 8px 6px; } .qa .dash-funnel-row { grid-template-columns: 100px minmax(0, 1fr) 32px; } }
