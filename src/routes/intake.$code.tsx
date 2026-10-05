@@ -791,13 +791,14 @@ function IntakePage() {
                 {demo === "verstuurd" || demo === "al" ? (
                   <p className="text-foreground">
                     {demo === "al" ? "Deze demo was al verstuurd." : "✅ Verstuurd. De kliniek kreeg een mail met haar demolink."}
-                    {demoTot &&
-                      ` De demo loopt tot ${new Date(demoTot).toLocaleDateString("nl-BE", { weekday: "long", day: "numeric", month: "long" })}.`}
+                    {demoTot
+                      ? ` De demo loopt tot ${new Date(demoTot).toLocaleDateString("nl-BE", { weekday: "long", day: "numeric", month: "long" })}.`
+                      : " De 7 dagen starten bij haar eerste vraag."}
                   </p>
                 ) : (
                   <>
                     <p className="text-muted-foreground">
-                      Alles nagekeken? Dan slaan we je wijzigingen op en mailen we de kliniek haar demolink. De 7 dagen starten nu.
+                      Alles nagekeken? Dan slaan we je wijzigingen op en mailen we de kliniek haar demolink. De 7 dagen starten bij haar eerste vraag.
                     </p>
                     <button
                       type="button"

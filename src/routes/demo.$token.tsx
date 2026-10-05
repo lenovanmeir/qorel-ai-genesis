@@ -50,6 +50,7 @@ const TEKSTEN = {
     titel: (k: string) => `De demo-receptioniste van ${k}`,
     uitleg: "Stel een vraag zoals een patiënt dat zou doen. Ze antwoordt met de info van je website.",
     teller: (n: number, datum: string) => `Nog ${n} ${n === 1 ? "bericht" : "berichten"} · tot ${datum}`,
+    start: (n: number) => `${n} berichten · 7 dagen vanaf je eerste vraag`,
     groet: (k: string) => `Hallo! Ik ben de AI-receptioniste van ${k}. Waarmee kan ik je helpen?`,
     voorbeelden: ["Welke behandelingen bieden jullie aan?", "Wat kost een behandeling?", "Waar zijn jullie gevestigd?"],
     plaats: "Typ je vraag…",
@@ -73,6 +74,7 @@ const TEKSTEN = {
     titel: (k: string) => `La réceptionniste démo de ${k}`,
     uitleg: "Posez une question comme le ferait un patient. Elle répond avec les informations de votre site.",
     teller: (n: number, datum: string) => `Encore ${n} message${n === 1 ? "" : "s"} · jusqu’au ${datum}`,
+    start: (n: number) => `${n} messages · 7 jours à partir de votre première question`,
     groet: (k: string) => `Bonjour ! Je suis la réceptionniste IA de ${k}. Comment puis-je vous aider ?`,
     voorbeelden: ["Quels traitements proposez-vous ?", "Combien coûte un traitement ?", "Où êtes-vous situés ?"],
     plaats: "Écrivez votre question…",
@@ -96,6 +98,7 @@ const TEKSTEN = {
     titel: (k: string) => `${k}'s demo receptionist`,
     uitleg: "Ask a question the way a patient would. She answers with the info from your website.",
     teller: (n: number, datum: string) => `${n} ${n === 1 ? "message" : "messages"} left · until ${datum}`,
+    start: (n: number) => `${n} messages · 7 days from your first question`,
     groet: (k: string) => `Hi! I'm the AI receptionist of ${k}. How can I help you?`,
     voorbeelden: ["Which treatments do you offer?", "How much does a treatment cost?", "Where are you located?"],
     plaats: "Type your question…",
@@ -180,7 +183,9 @@ function DemoPagina() {
       if (antwoord.ok && typeof antwoord.antwoord === "string") {
         setBerichten((b) => [...b, { rol: "receptioniste", tekst: antwoord.antwoord as string }]);
         const resterend = typeof antwoord.resterend === "number" ? antwoord.resterend : info?.resterend;
-        setInfo((i) => (i ? { ...i, resterend } : i));
+        // The 7 days start with the first question, so the end date arrives with this answer.
+        const verloopt = typeof antwoord.verloopt_op === "string" ? antwoord.verloopt_op : info?.verloopt_op;
+        setInfo((i) => (i ? { ...i, resterend, verloopt_op: verloopt } : i));
         if (!info?.beheerder && resterend === 0) setStaat("op");
       } else if (typeof antwoord.staat === "string") {
         setStaat(antwoord.staat as Staat);
@@ -242,7 +247,11 @@ function DemoPagina() {
               {info?.beheerder ? (
                 <p className="demo-test">{t.testmodus}</p>
               ) : (
-                staat === "actief" && datum && <p className="demo-count">{t.teller(info?.resterend ?? 0, datum)}</p>
+                staat === "actief" && (
+                  <p className="demo-count">
+                    {datum ? t.teller(info?.resterend ?? 0, datum) : t.start(info?.resterend ?? 0)}
+                  </p>
+                )
               )}
             </header>
 
