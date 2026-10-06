@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import aestheticsCss from "../styles/aesthetics.css?url";
 
@@ -62,7 +62,11 @@ const FICHES: Fiche[] = [
     laatstePost: "gisteren",
     bio: "Laser & skin · DM voor een afspraak",
     vragen: ["“Prijs voor full legs?”", "“Doen jullie ook mannen?”", "“Info pls”"],
-    demoVragen: ["Wat kost laserontharing?", "Zijn jullie open op zaterdag?", "Hoeveel sessies heb ik nodig?"],
+    demoVragen: [
+      "Wat kost laserontharing?",
+      "Zijn jullie open op zaterdag?",
+      "Hoeveel sessies heb ik nodig?",
+    ],
     gesprek: "vandaag 15:00 (jouw tijd 21:00)",
   },
   {
@@ -102,12 +106,14 @@ function Dashboard() {
       <div className="wrap dash">
         <nav className="top" aria-label="Dashboard">
           <span className="logo" aria-label="Qore Aesthetics">
-            <span className="q" aria-hidden="true">Q</span>
+            <span className="q" aria-hidden="true">
+              Q
+            </span>
             <span className="wm">
               QORE<small>DASHBOARD</small>
             </span>
           </span>
-          <span className="dash-badge">Voorbeeld met testcijfers</span>
+          <span className="dash-badge">Vandaag: live · rest: voorbeeld</span>
         </nav>
 
         <div className="dash-tabs" role="tablist" aria-label="Onderdelen">
@@ -131,7 +137,7 @@ function Dashboard() {
           <FicheView fiche={fiche} terug={() => setFiche(null)} />
         ) : (
           <>
-            {tab === "vandaag" && <Vandaag open={setFiche} />}
+            {tab === "vandaag" && <LiveVandaag />}
             {tab === "week" && <Week />}
             {tab === "leads" && <Leads open={setFiche} />}
             {tab === "demos" && <Demos />}
@@ -158,61 +164,325 @@ function Cijfers({ items }: { items: [string, string, string?][] }) {
   );
 }
 
-function Vandaag({ open }: { open: (f: Fiche) => void }) {
+// Live list for today, read from the Leads tab by n8n workflow "Dashboard vandaag (Leads)".
+const VANDAAG_URL = "https://qorelabs.app.n8n.cloud/webhook/qa-dashboard-vandaag";
+const ACTIE_URL = "https://qorelabs.app.n8n.cloud/webhook/qa-dashboard-actie";
+const SLEUTEL_OPSLAG = "qore-beheercode";
+
+type Taak = {
+  rij: number;
+  naam: string;
+  stad: string;
+  instagram: string;
+  email: string;
+  kanaal: string;
+  status: string;
+  datum: string;
+  volgendeStap: string;
+  versie: string;
+  bericht?: string;
+  reactie?: string;
+  uitleg?: string;
+  stap?: number;
+};
+
+type Lijst = {
+  vandaag: string;
+  sturen: Taak[];
+  opwarmen: Taak[];
+  opvolgen: Taak[];
+  nakijken: Taak[];
+};
+
+type Actie = "verstuurd" | "opvolging1" | "opvolging2" | "geantwoord";
+
+function leesSleutel() {
+  try {
+    return localStorage.getItem(SLEUTEL_OPSLAG) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function bewaarSleutel(waarde: string) {
+  try {
+    localStorage.setItem(SLEUTEL_OPSLAG, waarde);
+  } catch {
+    // Storage can be blocked; the code then has to be typed again next time.
+  }
+}
+
+// A mail message starts with "Onderwerp: ..." on its first line; split it for the mailto link.
+function mailLink(taak: Taak) {
+  const tekst = taak.bericht ?? "";
+  const m = tekst.match(/^Onderwerp: (.*)\n\n([\s\S]*)$/);
+  const onderwerp = m ? m[1] : "";
+  const inhoud = m ? m[2] : tekst;
+  return `mailto:${taak.email}?subject=${encodeURIComponent(onderwerp)}&body=${encodeURIComponent(inhoud)}`;
+}
+
+function LiveVandaag() {
+  const [sleutel, setSleutel] = useState("");
+  const [invoer, setInvoer] = useState("");
+  const [lijst, setLijst] = useState<Lijst | null>(null);
+  const [fout, setFout] = useState("");
+  const [laden, setLaden] = useState(false);
+  const [bezig, setBezig] = useState<number | null>(null);
+  const [gekopieerd, setGekopieerd] = useState<number | null>(null);
+
+  async function ophalen(code: string) {
+    setLaden(true);
+    setFout("");
+    try {
+      const antwoord = await fetch(`${VANDAAG_URL}?sleutel=${encodeURIComponent(code)}`);
+      if (antwoord.status === 403) {
+        setFout("Die beheercode klopt niet.");
+        setSleutel("");
+        return;
+      }
+      if (!antwoord.ok) throw new Error();
+      setLijst((await antwoord.json()) as Lijst);
+      setSleutel(code);
+      bewaarSleutel(code);
+    } catch {
+      setFout("De lijst kon niet geladen worden. Probeer het zo opnieuw.");
+    } finally {
+      setLaden(false);
+    }
+  }
+
+  useEffect(() => {
+    const code = leesSleutel();
+    if (code) void ophalen(code);
+  }, []);
+
+  async function markeer(taak: Taak, actie: Actie) {
+    setBezig(taak.rij);
+    try {
+      const antwoord = await fetch(ACTIE_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sleutel, rij: taak.rij, actie }),
+      });
+      if (!antwoord.ok) throw new Error();
+      await ophalen(sleutel);
+    } catch {
+      setFout(`${taak.naam} kon niet bijgewerkt worden. Probeer het opnieuw.`);
+    } finally {
+      setBezig(null);
+    }
+  }
+
+  async function kopieer(taak: Taak) {
+    try {
+      await navigator.clipboard.writeText(taak.bericht ?? "");
+      setGekopieerd(taak.rij);
+      setTimeout(() => setGekopieerd(null), 2000);
+    } catch {
+      setFout("Kopiëren lukte niet. Selecteer de tekst en kopieer hem zelf.");
+    }
+  }
+
+  if (!sleutel) {
+    return (
+      <section className="dash-section">
+        <form
+          className="dash-card dash-key"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (invoer.trim()) void ophalen(invoer.trim());
+          }}
+        >
+          <h2>Vandaag</h2>
+          <p className="dash-note">Vul je beheercode in. Hij blijft op dit toestel bewaard.</p>
+          <div className="dash-actions">
+            <input
+              type="password"
+              value={invoer}
+              onChange={(e) => setInvoer(e.target.value)}
+              placeholder="Beheercode"
+              aria-label="Beheercode"
+              autoComplete="current-password"
+            />
+            <button type="submit" className="dash-btn primary" disabled={laden}>
+              {laden ? "Laden…" : "Openen"}
+            </button>
+          </div>
+          {fout && <p className="dash-error">{fout}</p>}
+        </form>
+      </section>
+    );
+  }
+
+  if (!lijst) {
+    return (
+      <section className="dash-section">
+        <p className="dash-note">{fout || "Lijst van vandaag laden…"}</p>
+      </section>
+    );
+  }
+
   return (
     <section className="dash-section">
       <Cijfers
         items={[
-          ["Nieuwe leads vannacht", "28", "Antwerpen"],
-          ["DM's klaar om te sturen", "20", "bericht staat in je sheet"],
-          ["Antwoorden", "3", "sinds gisteren"],
-          ["Demo's actief", "5", "2 bijna op"],
-          ["n8n-verbruik", "38%", "van 2.500 deze maand"],
+          ["Vandaag versturen", String(lijst.sturen.length), "van boven naar beneden"],
+          ["Opvolgen", String(lijst.opvolgen.length), "geen antwoord gekregen"],
+          ["Opwarmen", String(lijst.opwarmen.length), "doet Claude, verspreid over de dag"],
+          ["Nakijken", String(lijst.nakijken.length), "eerst iets uitzoeken"],
         ]}
       />
+      {fout && <p className="dash-error">{fout}</p>}
+
+      <div className="dash-card">
+        <div className="dash-card-head">
+          <h2>Vandaag versturen</h2>
+          <button
+            type="button"
+            className="dash-btn"
+            onClick={() => void ophalen(sleutel)}
+            disabled={laden}
+          >
+            {laden ? "Laden…" : "Vernieuwen"}
+          </button>
+        </div>
+        {lijst.sturen.length === 0 && <p className="dash-note">Niets meer te versturen vandaag.</p>}
+        <ul className="dash-list">
+          {lijst.sturen.map((t) => (
+            <TaakKaart
+              key={t.rij}
+              taak={t}
+              bezig={bezig === t.rij}
+              gekopieerd={gekopieerd === t.rij}
+              kopieer={() => void kopieer(t)}
+              acties={[["verstuurd", "Verstuurd ✓"]]}
+              markeer={(a) => void markeer(t, a)}
+            />
+          ))}
+        </ul>
+      </div>
+
+      {lijst.opvolgen.length > 0 && (
+        <div className="dash-card">
+          <h2>Opvolgen</h2>
+          <ul className="dash-list">
+            {lijst.opvolgen.map((t) => (
+              <TaakKaart
+                key={t.rij}
+                taak={t}
+                bezig={bezig === t.rij}
+                gekopieerd={gekopieerd === t.rij}
+                kopieer={() => void kopieer(t)}
+                acties={[
+                  [
+                    t.stap === 2 ? "opvolging2" : "opvolging1",
+                    `Opvolging ${t.stap ?? 1} verstuurd ✓`,
+                  ],
+                  ["geantwoord", "Ze hebben geantwoord"],
+                ]}
+                markeer={(a) => void markeer(t, a)}
+              />
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div className="dash-grid">
         <div className="dash-card">
-          <h2>Vandaag opvolgen</h2>
-          <ul className="dash-list">
-            {FICHES.map((f) => (
-              <li key={f.naam}>
-                <button type="button" onClick={() => open(f)}>
-                  <span>
-                    <b>{f.naam}</b>
-                    <small>{f.waarom}</small>
-                  </span>
-                  <em className="dash-pill">{f.status}</em>
-                </button>
+          <h2>Opwarmen (doet Claude)</h2>
+          {lijst.opwarmen.length === 0 && <p className="dash-note">Niets op te warmen vandaag.</p>}
+          <ul className="dash-list plain">
+            {lijst.opwarmen.map((t) => (
+              <li key={t.rij}>
+                <span>
+                  <b>
+                    {t.naam} <small className="dash-rij">rij {t.rij}</small>
+                  </b>
+                  <small>Reactie: {t.reactie}</small>
+                </span>
               </li>
             ))}
           </ul>
         </div>
         <div className="dash-card">
-          <h2>Gesprekken</h2>
-          <ul className="dash-list">
-            <li>
-              <button type="button" onClick={() => open(FICHES[0])}>
-                <span>
-                  <b>Kliniek Aurora</b>
-                  <small>{FICHES[0].gesprek}</small>
-                </span>
-                <em className="dash-pill accent">Fiche →</em>
-              </button>
-            </li>
-          </ul>
-          <h2 className="dash-h2-spaced">Opgelost of te bekijken</h2>
+          <h2>Nakijken</h2>
+          {lijst.nakijken.length === 0 && <p className="dash-note">Niets na te kijken.</p>}
           <ul className="dash-list plain">
-            <li>
-              <span>
-                <b>Database even traag om 03:12</b>
-                <small>Automatisch opnieuw geprobeerd, alles werkt</small>
-              </span>
-              <em className="dash-pill ok">Opgelost</em>
-            </li>
+            {lijst.nakijken.map((t) => (
+              <li key={t.rij}>
+                <span>
+                  <b>
+                    {t.naam} <small className="dash-rij">rij {t.rij}</small>
+                  </b>
+                  <small>{t.volgendeStap}</small>
+                </span>
+              </li>
+            ))}
           </ul>
         </div>
       </div>
     </section>
+  );
+}
+
+function TaakKaart({
+  taak,
+  bezig,
+  gekopieerd,
+  kopieer,
+  acties,
+  markeer,
+}: {
+  taak: Taak;
+  bezig: boolean;
+  gekopieerd: boolean;
+  kopieer: () => void;
+  acties: [Actie, string][];
+  markeer: (a: Actie) => void;
+}) {
+  const isMail = taak.kanaal === "E-mail";
+  return (
+    <li className="dash-task">
+      <div className="dash-task-head">
+        <span>
+          <b>
+            {taak.naam} <small className="dash-rij">rij {taak.rij}</small>
+          </b>
+          <small>{taak.volgendeStap}</small>
+        </span>
+        <em className={`dash-pill ${isMail ? "warn" : "accent"}`}>
+          {isMail ? "Mail" : "Instagram"}
+        </em>
+      </div>
+      <p className="dash-msg">{taak.bericht}</p>
+      <div className="dash-actions">
+        <button type="button" className="dash-btn" onClick={kopieer}>
+          {gekopieerd ? "Gekopieerd" : "Kopieer bericht"}
+        </button>
+        {isMail ? (
+          <a className="dash-btn" href={mailLink(taak)}>
+            Open in mail
+          </a>
+        ) : (
+          taak.instagram && (
+            <a className="dash-btn" href={taak.instagram} target="_blank" rel="noreferrer">
+              Open Instagram
+            </a>
+          )
+        )}
+        {acties.map(([actie, label]) => (
+          <button
+            key={actie}
+            type="button"
+            className="dash-btn primary"
+            disabled={bezig}
+            onClick={() => markeer(actie)}
+          >
+            {bezig ? "Bezig…" : label}
+          </button>
+        ))}
+      </div>
+    </li>
   );
 }
 
@@ -353,7 +623,10 @@ function Klanten() {
             ))}
           </tbody>
         </table>
-        <p className="dash-note">Meest gevraagd deze maand: prijs botox, laserontharing, parkeren. Buiten de openingsuren: 38% van de gesprekken.</p>
+        <p className="dash-note">
+          Meest gevraagd deze maand: prijs botox, laserontharing, parkeren. Buiten de openingsuren:
+          38% van de gesprekken.
+        </p>
       </div>
     </section>
   );
@@ -396,7 +669,8 @@ function FicheView({ fiche, terug }: { fiche: Fiche; terug: () => void }) {
           <div>
             <h2>{fiche.naam}</h2>
             <p className="dash-sub">
-              {fiche.stad} · {fiche.instagram} · {fiche.volgers} volgers · laatste post {fiche.laatstePost}
+              {fiche.stad} · {fiche.instagram} · {fiche.volgers} volgers · laatste post{" "}
+              {fiche.laatstePost}
             </p>
           </div>
           <span className="dash-score big">{fiche.kans}</span>
