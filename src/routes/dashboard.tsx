@@ -23,10 +23,11 @@ export const Route = createFileRoute("/dashboard")({
   component: Dashboard,
 });
 
-type Tab = "vandaag" | "week" | "leads" | "demos" | "klanten" | "betalingen";
+type Tab = "vandaag" | "morgen" | "week" | "leads" | "demos" | "klanten" | "betalingen";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "vandaag", label: "Vandaag" },
+  { id: "morgen", label: "Morgen" },
   { id: "week", label: "Deze week" },
   { id: "leads", label: "Leads" },
   { id: "demos", label: "Demo's" },
@@ -113,7 +114,7 @@ function Dashboard() {
               QORE<small>DASHBOARD</small>
             </span>
           </span>
-          <span className="dash-badge">Vandaag: live · rest: voorbeeld</span>
+          <span className="dash-badge">Vandaag &amp; morgen: live · rest: voorbeeld</span>
         </nav>
 
         <div className="dash-tabs" role="tablist" aria-label="Onderdelen">
@@ -137,7 +138,8 @@ function Dashboard() {
           <FicheView fiche={fiche} terug={() => setFiche(null)} />
         ) : (
           <>
-            {tab === "vandaag" && <LiveVandaag />}
+            {tab === "vandaag" && <LiveVandaag dag="vandaag" />}
+            {tab === "morgen" && <LiveVandaag dag="morgen" />}
             {tab === "week" && <Week />}
             {tab === "leads" && <Leads open={setFiche} />}
             {tab === "demos" && <Demos />}
@@ -192,6 +194,7 @@ type Lijst = {
   opwarmen: Taak[];
   opvolgen: Taak[];
   nakijken: Taak[];
+  morgen?: { datum: string; sturen: Taak[]; opwarmen: Taak[]; opvolgen: Taak[] };
 };
 
 type Actie = "verstuurd" | "opvolging1" | "opvolging2" | "geantwoord";
@@ -221,7 +224,7 @@ function mailLink(taak: Taak) {
   return `mailto:${taak.email}?subject=${encodeURIComponent(onderwerp)}&body=${encodeURIComponent(inhoud)}`;
 }
 
-function LiveVandaag() {
+function LiveVandaag({ dag }: { dag: "vandaag" | "morgen" }) {
   const [sleutel, setSleutel] = useState("");
   const [invoer, setInvoer] = useState("");
   const [lijst, setLijst] = useState<Lijst | null>(null);
@@ -293,7 +296,7 @@ function LiveVandaag() {
             if (invoer.trim()) void ophalen(invoer.trim());
           }}
         >
-          <h2>Vandaag</h2>
+          <h2>{dag === "morgen" ? "Morgen" : "Vandaag"}</h2>
           <p className="dash-note">Vul je beheercode in. Hij blijft op dit toestel bewaard.</p>
           <div className="dash-actions">
             <input
@@ -322,21 +325,36 @@ function LiveVandaag() {
     );
   }
 
+  const morgen = dag === "morgen";
+  // Tomorrow is a preview: same lists, no buttons that change the sheet.
+  const deel = morgen
+    ? (lijst.morgen ?? { datum: "", sturen: [], opwarmen: [], opvolgen: [] })
+    : lijst;
+  const woord = morgen ? "Morgen" : "Vandaag";
+
   return (
     <section className="dash-section">
       <Cijfers
         items={[
-          ["Vandaag versturen", String(lijst.sturen.length), "van boven naar beneden"],
-          ["Opvolgen", String(lijst.opvolgen.length), "geen antwoord gekregen"],
-          ["Opwarmen", String(lijst.opwarmen.length), "doet Claude, verspreid over de dag"],
-          ["Nakijken", String(lijst.nakijken.length), "eerst iets uitzoeken"],
+          [`${woord} versturen`, String(deel.sturen.length), "van boven naar beneden"],
+          ["Opvolgen", String(deel.opvolgen.length), "geen antwoord gekregen"],
+          ["Opwarmen", String(deel.opwarmen.length), "doet Claude, verspreid over de dag"],
+          ...(morgen
+            ? []
+            : [
+                ["Nakijken", String(lijst.nakijken.length), "eerst iets uitzoeken"] as [
+                  string,
+                  string,
+                  string,
+                ],
+              ]),
         ]}
       />
       {fout && <p className="dash-error">{fout}</p>}
 
       <div className="dash-card">
         <div className="dash-card-head">
-          <h2>Vandaag versturen</h2>
+          <h2>{woord} versturen</h2>
           <button
             type="button"
             className="dash-btn"
@@ -346,40 +364,48 @@ function LiveVandaag() {
             {laden ? "Laden…" : "Vernieuwen"}
           </button>
         </div>
-        {lijst.sturen.length === 0 && <p className="dash-note">Niets meer te versturen vandaag.</p>}
+        {deel.sturen.length === 0 && (
+          <p className="dash-note">
+            {morgen ? "Morgen staat er niets klaar." : "Niets meer te versturen vandaag."}
+          </p>
+        )}
         <ul className="dash-list">
-          {lijst.sturen.map((t) => (
+          {deel.sturen.map((t) => (
             <TaakKaart
               key={t.rij}
               taak={t}
               bezig={bezig === t.rij}
               gekopieerd={gekopieerd === t.rij}
               kopieer={() => void kopieer(t)}
-              acties={[["verstuurd", "Verstuurd ✓"]]}
+              acties={morgen ? [] : [["verstuurd", "Verstuurd ✓"]]}
               markeer={(a) => void markeer(t, a)}
             />
           ))}
         </ul>
       </div>
 
-      {lijst.opvolgen.length > 0 && (
+      {deel.opvolgen.length > 0 && (
         <div className="dash-card">
           <h2>Opvolgen</h2>
           <ul className="dash-list">
-            {lijst.opvolgen.map((t) => (
+            {deel.opvolgen.map((t) => (
               <TaakKaart
                 key={t.rij}
                 taak={t}
                 bezig={bezig === t.rij}
                 gekopieerd={gekopieerd === t.rij}
                 kopieer={() => void kopieer(t)}
-                acties={[
-                  [
-                    t.stap === 2 ? "opvolging2" : "opvolging1",
-                    `Opvolging ${t.stap ?? 1} verstuurd ✓`,
-                  ],
-                  ["geantwoord", "Ze hebben geantwoord"],
-                ]}
+                acties={
+                  morgen
+                    ? []
+                    : [
+                        [
+                          t.stap === 2 ? "opvolging2" : "opvolging1",
+                          `Opvolging ${t.stap ?? 1} verstuurd ✓`,
+                        ],
+                        ["geantwoord", "Ze hebben geantwoord"],
+                      ]
+                }
                 markeer={(a) => void markeer(t, a)}
               />
             ))}
@@ -390,9 +416,9 @@ function LiveVandaag() {
       <div className="dash-grid">
         <div className="dash-card">
           <h2>Opwarmen (doet Claude)</h2>
-          {lijst.opwarmen.length === 0 && <p className="dash-note">Niets op te warmen vandaag.</p>}
+          {deel.opwarmen.length === 0 && <p className="dash-note">Niets op te warmen.</p>}
           <ul className="dash-list plain">
-            {lijst.opwarmen.map((t) => (
+            {deel.opwarmen.map((t) => (
               <li key={t.rij}>
                 <span>
                   <b>
@@ -404,22 +430,24 @@ function LiveVandaag() {
             ))}
           </ul>
         </div>
-        <div className="dash-card">
-          <h2>Nakijken</h2>
-          {lijst.nakijken.length === 0 && <p className="dash-note">Niets na te kijken.</p>}
-          <ul className="dash-list plain">
-            {lijst.nakijken.map((t) => (
-              <li key={t.rij}>
-                <span>
-                  <b>
-                    {t.naam} <small className="dash-rij">rij {t.rij}</small>
-                  </b>
-                  <small>{t.volgendeStap}</small>
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
+        {!morgen && (
+          <div className="dash-card">
+            <h2>Nakijken</h2>
+            {lijst.nakijken.length === 0 && <p className="dash-note">Niets na te kijken.</p>}
+            <ul className="dash-list plain">
+              {lijst.nakijken.map((t) => (
+                <li key={t.rij}>
+                  <span>
+                    <b>
+                      {t.naam} <small className="dash-rij">rij {t.rij}</small>
+                    </b>
+                    <small>{t.volgendeStap}</small>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
     </section>
   );
