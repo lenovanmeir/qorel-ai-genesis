@@ -186,6 +186,8 @@ type Taak = {
   reactie?: string;
   uitleg?: string;
   stap?: number;
+  vraagknop?: string;
+  minuten?: number;
 };
 
 type Lijst = {
@@ -195,9 +197,22 @@ type Lijst = {
   opvolgen: Taak[];
   nakijken: Taak[];
   morgen?: { datum: string; sturen: Taak[]; opwarmen: Taak[]; opvolgen: Taak[] };
+  vraagknopTikken?: Taak[];
+  vraagknopWachten?: Taak[];
 };
 
-type Actie = "verstuurd" | "opvolging1" | "opvolging2" | "geantwoord";
+type Actie =
+  | "verstuurd"
+  | "opvolging1"
+  | "opvolging2"
+  | "geantwoord"
+  | "vraagknop_getikt"
+  | "vraagknop_geen"
+  | "vraagknop_wel";
+
+// Instagram's suggested-question buttons only show in the phone app, so Leno taps them; after 2,5 hours
+// without an answer the pain point goes into that clinic's DM.
+const VRAAGKNOP_WACHTTIJD = 150;
 
 function leesSleutel() {
   try {
@@ -352,6 +367,81 @@ function LiveVandaag({ dag }: { dag: "vandaag" | "morgen" }) {
       />
       {fout && <p className="dash-error">{fout}</p>}
 
+      {!morgen &&
+        ((lijst.vraagknopTikken?.length ?? 0) > 0 || (lijst.vraagknopWachten?.length ?? 0) > 0) && (
+          <div className="dash-card">
+            <h2>Vraagknoppen testen (op je telefoon)</h2>
+            <p className="dash-note">
+              Open de chat in de Instagram-app en tik op één voorgestelde vraag. Krijg je na 2,5 uur
+              geen antwoord, dan komt dat pijnpunt automatisch in hun DM.
+            </p>
+            <ul className="dash-list plain">
+              {(lijst.vraagknopTikken ?? []).map((t) => (
+                <li key={`tik-${t.rij}`}>
+                  <span>
+                    <b>
+                      {t.naam} <small className="dash-rij">rij {t.rij}</small>
+                    </b>
+                    <small>Nog te testen</small>
+                  </span>
+                  <span className="dash-actions">
+                    {t.instagram && (
+                      <a className="dash-btn" href={t.instagram} target="_blank" rel="noreferrer">
+                        Open Instagram
+                      </a>
+                    )}
+                    <button
+                      type="button"
+                      className="dash-btn primary"
+                      disabled={bezig === t.rij}
+                      onClick={() => void markeer(t, "vraagknop_getikt")}
+                    >
+                      {bezig === t.rij ? "Bezig…" : "Getikt ✓"}
+                    </button>
+                  </span>
+                </li>
+              ))}
+              {(lijst.vraagknopWachten ?? []).map((t) => {
+                const klaar = (t.minuten ?? 0) >= VRAAGKNOP_WACHTTIJD;
+                return (
+                  <li key={`wacht-${t.rij}`}>
+                    <span>
+                      <b>
+                        {t.naam} <small className="dash-rij">rij {t.rij}</small>
+                      </b>
+                      <small>
+                        {klaar
+                          ? `Getikt ${String(Math.round((t.minuten ?? 0) / 6) / 10).replace(".", ",")} uur geleden: kwam er een antwoord?`
+                          : `Getikt, nog ${VRAAGKNOP_WACHTTIJD - (t.minuten ?? 0)} minuten wachten`}
+                      </small>
+                    </span>
+                    <span className="dash-actions">
+                      {klaar && (
+                        <button
+                          type="button"
+                          className="dash-btn primary"
+                          disabled={bezig === t.rij}
+                          onClick={() => void markeer(t, "vraagknop_geen")}
+                        >
+                          Geen antwoord
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="dash-btn"
+                        disabled={bezig === t.rij}
+                        onClick={() => void markeer(t, "vraagknop_wel")}
+                      >
+                        Wel antwoord
+                      </button>
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
+
       <div className="dash-card">
         <div className="dash-card-head">
           <h2>{woord} versturen</h2>
@@ -482,6 +572,7 @@ function TaakKaart({
           {isMail ? "Mail" : "Instagram"}
         </em>
       </div>
+      {taak.vraagknop && <p className="dash-note">Vraagknop: {taak.vraagknop}</p>}
       <p className="dash-msg">{taak.bericht}</p>
       <div className="dash-actions">
         <button type="button" className="dash-btn" onClick={kopieer}>
