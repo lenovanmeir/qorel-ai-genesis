@@ -291,6 +291,28 @@ function LiveVandaag({ dag }: { dag: "vandaag" | "morgen" }) {
     }
   }
 
+  // Marks every question-button test older than 2,5 hours as unanswered, one after the other.
+  async function allesGeenAntwoord() {
+    const klaar = (lijst?.vraagknopWachten ?? []).filter(
+      (t) => (t.minuten ?? 0) >= VRAAGKNOP_WACHTTIJD,
+    );
+    for (const t of klaar) {
+      setBezig(t.rij);
+      try {
+        const antwoord = await fetch(ACTIE_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sleutel, rij: t.rij, actie: "vraagknop_geen" }),
+        });
+        if (!antwoord.ok) throw new Error();
+      } catch {
+        setFout(`${t.naam} kon niet bijgewerkt worden. Probeer het opnieuw.`);
+      }
+    }
+    setBezig(null);
+    await ophalen(sleutel);
+  }
+
   async function kopieer(taak: Taak) {
     try {
       await navigator.clipboard.writeText(taak.bericht ?? "");
@@ -370,7 +392,21 @@ function LiveVandaag({ dag }: { dag: "vandaag" | "morgen" }) {
       {!morgen &&
         ((lijst.vraagknopTikken?.length ?? 0) > 0 || (lijst.vraagknopWachten?.length ?? 0) > 0) && (
           <div className="dash-card">
-            <h2>Vraagknoppen testen (op je telefoon)</h2>
+            <div className="dash-card-head">
+              <h2>Vraagknoppen testen (op je telefoon)</h2>
+              {(lijst.vraagknopWachten ?? []).some(
+                (t) => (t.minuten ?? 0) >= VRAAGKNOP_WACHTTIJD,
+              ) && (
+                <button
+                  type="button"
+                  className="dash-btn primary"
+                  disabled={bezig !== null}
+                  onClick={() => void allesGeenAntwoord()}
+                >
+                  Alles: geen antwoord
+                </button>
+              )}
+            </div>
             <p className="dash-note">
               Open de chat in de Instagram-app en tik op één voorgestelde vraag. Krijg je na 2,5 uur
               geen antwoord, dan komt dat pijnpunt automatisch in hun DM.
