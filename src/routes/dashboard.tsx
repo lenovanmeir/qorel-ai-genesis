@@ -636,17 +636,26 @@ function TaakKaart({
       {taak.vraagknop && <p className="dash-note">Vraagknop: {taak.vraagknop}</p>}
       <p className="dash-msg">{taak.bericht}</p>
       <div className="dash-actions">
-        <button type="button" className="dash-btn" onClick={kopieer}>
-          {gekopieerd ? "Gekopieerd" : "Kopieer bericht"}
-        </button>
         {isMail ? (
-          <a className="dash-btn" href={mailLink(taak)}>
-            Open in mail
-          </a>
+          <>
+            <button type="button" className="dash-btn" onClick={kopieer}>
+              {gekopieerd ? "Gekopieerd" : "Kopieer bericht"}
+            </button>
+            <a className="dash-btn" href={mailLink(taak)}>
+              Open in mail
+            </a>
+          </>
         ) : (
+          // One tap copies the message and opens the clinic's Instagram, so Leno only has to paste.
           taak.instagram && (
-            <a className="dash-btn" href={taak.instagram} target="_blank" rel="noreferrer">
-              Open Instagram
+            <a
+              className="dash-btn"
+              href={taak.instagram}
+              target="_blank"
+              rel="noreferrer"
+              onClick={kopieer}
+            >
+              {gekopieerd ? "Gekopieerd ✓ plak in Instagram" : "Kopieer & open Instagram"}
             </a>
           )
         )}
