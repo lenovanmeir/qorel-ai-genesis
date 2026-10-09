@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import aestheticsCss from "../styles/aesthetics.css?url";
 
@@ -210,7 +210,35 @@ type Actie =
   | "vraagknop_geenknop"
   | "vraagknop_getikt"
   | "vraagknop_geen"
-  | "vraagknop_wel";
+  | "vraagknop_wel"
+  | "naar_morgen";
+
+// Leno first marks everything, then sends one block at once: one n8n run instead of one per click.
+type Keuze = { rij: number; actie: Actie; tijd: string };
+const KEUZE_OPSLAG = "qore-keuzes";
+
+// Marks on the same row only conflict within a group (one status, one question-button step, one date move).
+function groep(actie: Actie) {
+  if (actie.startsWith("vraagknop_")) return "knop";
+  if (actie === "naar_morgen") return "datum";
+  return "status";
+}
+
+function leesKeuzes(): Record<string, Keuze> {
+  try {
+    return JSON.parse(localStorage.getItem(KEUZE_OPSLAG) ?? "{}") as Record<string, Keuze>;
+  } catch {
+    return {};
+  }
+}
+
+function bewaarKeuzes(keuzes: Record<string, Keuze>) {
+  try {
+    localStorage.setItem(KEUZE_OPSLAG, JSON.stringify(keuzes));
+  } catch {
+    // Without storage the marks only live until the page is closed.
+  }
+}
 
 // Instagram's suggested-question buttons only show in the phone app, so Leno taps them; after 2,5 hours
 // without an answer the pain point goes into that clinic's DM.
@@ -247,7 +275,8 @@ function LiveVandaag({ dag }: { dag: "vandaag" | "morgen" }) {
   const [lijst, setLijst] = useState<Lijst | null>(null);
   const [fout, setFout] = useState("");
   const [laden, setLaden] = useState(false);
-  const [bezig, setBezig] = useState<number | null>(null);
+  const [bezig, setBezig] = useState(false);
+  const [keuzes, setKeuzes] = useState<Record<string, Keuze>>({});
   const [gekopieerd, setGekopieerd] = useState<number | null>(null);
 
   async function ophalen(code: string) {
@@ -276,43 +305,77 @@ function LiveVandaag({ dag }: { dag: "vandaag" | "morgen" }) {
     if (code) void ophalen(code);
   }, []);
 
-  async function markeer(taak: Taak, actie: Actie) {
-    setBezig(taak.rij);
+  useEffect(() => {
+    setKeuzes(leesKeuzes());
+  }, []);
+
+  // Warn before leaving the page while marks have not been sent yet.
+  useEffect(() => {
+    if (Object.keys(keuzes).length === 0) return;
+    const waarschuw = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", waarschuw);
+    return () => window.removeEventListener("beforeunload", waarschuw);
+  }, [keuzes]);
+
+  function zetKeuzes(nieuw: Record<string, Keuze>) {
+    setKeuzes(nieuw);
+    bewaarKeuzes(nieuw);
+  }
+
+  function isGekozen(rij: number, actie: Actie) {
+    return keuzes[`${rij}:${groep(actie)}`]?.actie === actie;
+  }
+
+  // A first click marks the action, a second click on the same button undoes it.
+  function kies(taak: Taak, actie: Actie) {
+    const sleutelKeuze = `${taak.rij}:${groep(actie)}`;
+    const nieuw = { ...keuzes };
+    if (nieuw[sleutelKeuze]?.actie === actie) delete nieuw[sleutelKeuze];
+    else nieuw[sleutelKeuze] = { rij: taak.rij, actie, tijd: new Date().toISOString() };
+    zetKeuzes(nieuw);
+  }
+
+  function keuzesVoor(rijen: number[]) {
+    return Object.entries(keuzes).filter(([, k]) => rijen.includes(k.rij));
+  }
+
+  // Sends all marks of one block in a single request.
+  async function verstuur(rijen: number[]) {
+    const lijstKeuzes = keuzesVoor(rijen);
+    if (lijstKeuzes.length === 0) return;
+    setBezig(true);
+    setFout("");
     try {
       const antwoord = await fetch(ACTIE_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sleutel, rij: taak.rij, actie }),
+        body: JSON.stringify({ sleutel, acties: lijstKeuzes.map(([, k]) => k) }),
       });
       if (!antwoord.ok) throw new Error();
+      const nieuw = { ...keuzes };
+      lijstKeuzes.forEach(([k]) => delete nieuw[k]);
+      zetKeuzes(nieuw);
       await ophalen(sleutel);
     } catch {
-      setFout(`${taak.naam} kon niet bijgewerkt worden. Probeer het opnieuw.`);
+      setFout("Versturen lukte niet. Je keuzes staan er nog; probeer het opnieuw.");
     } finally {
-      setBezig(null);
+      setBezig(false);
     }
   }
 
-  // Marks every question-button test older than 2,5 hours as unanswered, one after the other.
-  async function allesGeenAntwoord() {
-    const klaar = (lijst?.vraagknopWachten ?? []).filter(
-      (t) => (t.minuten ?? 0) >= VRAAGKNOP_WACHTTIJD,
-    );
-    for (const t of klaar) {
-      setBezig(t.rij);
-      try {
-        const antwoord = await fetch(ACTIE_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sleutel, rij: t.rij, actie: "vraagknop_geen" }),
-        });
-        if (!antwoord.ok) throw new Error();
-      } catch {
-        setFout(`${t.naam} kon niet bijgewerkt worden. Probeer het opnieuw.`);
-      }
-    }
-    setBezig(null);
-    await ophalen(sleutel);
+  // Marks every question-button test older than 2,5 hours as unanswered (still to be sent).
+  function allesGeenAntwoord() {
+    const nieuw = { ...keuzes };
+    (lijst?.vraagknopWachten ?? [])
+      .filter((t) => (t.minuten ?? 0) >= VRAAGKNOP_WACHTTIJD)
+      .forEach((t) => {
+        nieuw[`${t.rij}:knop`] = {
+          rij: t.rij,
+          actie: "vraagknop_geen",
+          tijd: new Date().toISOString(),
+        };
+      });
+    zetKeuzes(nieuw);
   }
 
   async function kopieer(taak: Taak) {
@@ -399,12 +462,7 @@ function LiveVandaag({ dag }: { dag: "vandaag" | "morgen" }) {
               {(lijst.vraagknopWachten ?? []).some(
                 (t) => (t.minuten ?? 0) >= VRAAGKNOP_WACHTTIJD,
               ) && (
-                <button
-                  type="button"
-                  className="dash-btn primary"
-                  disabled={bezig !== null}
-                  onClick={() => void allesGeenAntwoord()}
-                >
+                <button type="button" className="dash-btn primary" onClick={allesGeenAntwoord}>
                   Alles: geen antwoord
                 </button>
               )}
@@ -412,7 +470,8 @@ function LiveVandaag({ dag }: { dag: "vandaag" | "morgen" }) {
             <p className="dash-note">
               Open de chat in de Instagram-app. Geen keuzeknoppen? Klik op &quot;Geen
               keuzeknop&quot;. Wel? Tik op één voorgestelde vraag en klik op &quot;Getikt ✓&quot;.
-              Krijg je na 2,5 uur geen antwoord, dan komt dat pijnpunt automatisch in hun DM.
+              Krijg je na 2,5 uur geen antwoord, dan komt dat pijnpunt automatisch in hun DM. Wat je
+              aanduidt, gaat pas weg als je onderaan op Versturen tikt.
             </p>
             <ul className="dash-list plain">
               {(lijst.vraagknopTikken ?? []).map((t) => (
@@ -434,31 +493,31 @@ function LiveVandaag({ dag }: { dag: "vandaag" | "morgen" }) {
                       </a>
                     )}
                     {!t.vraagknop?.startsWith("Heeft") && (
-                      <button
-                        type="button"
-                        className="dash-btn"
-                        disabled={bezig === t.rij}
-                        onClick={() => void markeer(t, "vraagknop_heeft")}
+                      <KeuzeKnop
+                        gekozen={isGekozen(t.rij, "vraagknop_heeft")}
+                        onClick={() => kies(t, "vraagknop_heeft")}
                       >
                         Keuzeknop
-                      </button>
+                      </KeuzeKnop>
                     )}
-                    <button
-                      type="button"
-                      className="dash-btn"
-                      disabled={bezig === t.rij}
-                      onClick={() => void markeer(t, "vraagknop_geenknop")}
+                    <KeuzeKnop
+                      gekozen={isGekozen(t.rij, "vraagknop_geenknop")}
+                      onClick={() => kies(t, "vraagknop_geenknop")}
                     >
                       Geen keuzeknop
-                    </button>
-                    <button
-                      type="button"
-                      className="dash-btn primary"
-                      disabled={bezig === t.rij}
-                      onClick={() => void markeer(t, "vraagknop_getikt")}
+                    </KeuzeKnop>
+                    <KeuzeKnop
+                      gekozen={isGekozen(t.rij, "vraagknop_getikt")}
+                      onClick={() => kies(t, "vraagknop_getikt")}
                     >
-                      {bezig === t.rij ? "Bezig…" : "Getikt ✓"}
-                    </button>
+                      Getikt ✓
+                    </KeuzeKnop>
+                    <KeuzeKnop
+                      gekozen={isGekozen(t.rij, "naar_morgen")}
+                      onClick={() => kies(t, "naar_morgen")}
+                    >
+                      Naar morgen
+                    </KeuzeKnop>
                   </span>
                 </li>
               ))}
@@ -478,28 +537,41 @@ function LiveVandaag({ dag }: { dag: "vandaag" | "morgen" }) {
                     </span>
                     <span className="dash-actions">
                       {klaar && (
-                        <button
-                          type="button"
-                          className="dash-btn primary"
-                          disabled={bezig === t.rij}
-                          onClick={() => void markeer(t, "vraagknop_geen")}
+                        <KeuzeKnop
+                          gekozen={isGekozen(t.rij, "vraagknop_geen")}
+                          onClick={() => kies(t, "vraagknop_geen")}
                         >
                           Geen antwoord
-                        </button>
+                        </KeuzeKnop>
                       )}
-                      <button
-                        type="button"
-                        className="dash-btn"
-                        disabled={bezig === t.rij}
-                        onClick={() => void markeer(t, "vraagknop_wel")}
+                      <KeuzeKnop
+                        gekozen={isGekozen(t.rij, "vraagknop_wel")}
+                        onClick={() => kies(t, "vraagknop_wel")}
                       >
                         Wel antwoord
-                      </button>
+                      </KeuzeKnop>
                     </span>
                   </li>
                 );
               })}
             </ul>
+            <Verstuurbalk
+              aantal={
+                keuzesVoor(
+                  [...(lijst.vraagknopTikken ?? []), ...(lijst.vraagknopWachten ?? [])].map(
+                    (t) => t.rij,
+                  ),
+                ).length
+              }
+              bezig={bezig}
+              onClick={() =>
+                void verstuur(
+                  [...(lijst.vraagknopTikken ?? []), ...(lijst.vraagknopWachten ?? [])].map(
+                    (t) => t.rij,
+                  ),
+                )
+              }
+            />
           </div>
         )}
 
@@ -525,14 +597,28 @@ function LiveVandaag({ dag }: { dag: "vandaag" | "morgen" }) {
             <TaakKaart
               key={t.rij}
               taak={t}
-              bezig={bezig === t.rij}
+              gekozen={(a) => isGekozen(t.rij, a)}
               gekopieerd={gekopieerd === t.rij}
               kopieer={() => void kopieer(t)}
-              acties={morgen ? [] : [["verstuurd", "Verstuurd ✓"]]}
-              markeer={(a) => void markeer(t, a)}
+              acties={
+                morgen
+                  ? []
+                  : [
+                      ["verstuurd", "Verstuurd ✓"],
+                      ["naar_morgen", "Naar morgen"],
+                    ]
+              }
+              kies={(a) => kies(t, a)}
             />
           ))}
         </ul>
+        {!morgen && (
+          <Verstuurbalk
+            aantal={keuzesVoor(deel.sturen.map((t) => t.rij)).length}
+            bezig={bezig}
+            onClick={() => void verstuur(deel.sturen.map((t) => t.rij))}
+          />
+        )}
       </div>
 
       {deel.opvolgen.length > 0 && (
@@ -543,7 +629,7 @@ function LiveVandaag({ dag }: { dag: "vandaag" | "morgen" }) {
               <TaakKaart
                 key={t.rij}
                 taak={t}
-                bezig={bezig === t.rij}
+                gekozen={(a) => isGekozen(t.rij, a)}
                 gekopieerd={gekopieerd === t.rij}
                 kopieer={() => void kopieer(t)}
                 acties={
@@ -557,10 +643,17 @@ function LiveVandaag({ dag }: { dag: "vandaag" | "morgen" }) {
                         ["geantwoord", "Ze hebben geantwoord"],
                       ]
                 }
-                markeer={(a) => void markeer(t, a)}
+                kies={(a) => kies(t, a)}
               />
             ))}
           </ul>
+          {!morgen && (
+            <Verstuurbalk
+              aantal={keuzesVoor(deel.opvolgen.map((t) => t.rij)).length}
+              bezig={bezig}
+              onClick={() => void verstuur(deel.opvolgen.map((t) => t.rij))}
+            />
+          )}
         </div>
       )}
 
@@ -604,20 +697,70 @@ function LiveVandaag({ dag }: { dag: "vandaag" | "morgen" }) {
   );
 }
 
+// A button that only marks a choice; a ring shows it is marked and a second tap undoes it.
+function KeuzeKnop({
+  gekozen,
+  onClick,
+  children,
+}: {
+  gekozen: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      className={`dash-btn${gekozen ? " gekozen" : ""}`}
+      aria-pressed={gekozen}
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  );
+}
+
+function Verstuurbalk({
+  aantal,
+  bezig,
+  onClick,
+}: {
+  aantal: number;
+  bezig: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <div className="dash-save">
+      <small>
+        {aantal === 0
+          ? "Duid aan wat je gedaan hebt en verstuur alles in één keer."
+          : `${aantal} aangeduid, nog niet verstuurd. Tik nog eens op een knop om het ongedaan te maken.`}
+      </small>
+      <button
+        type="button"
+        className="dash-btn primary"
+        disabled={aantal === 0 || bezig}
+        onClick={onClick}
+      >
+        {bezig ? "Versturen…" : `Versturen (${aantal})`}
+      </button>
+    </div>
+  );
+}
+
 function TaakKaart({
   taak,
-  bezig,
+  gekozen,
   gekopieerd,
   kopieer,
   acties,
-  markeer,
+  kies,
 }: {
   taak: Taak;
-  bezig: boolean;
+  gekozen: (a: Actie) => boolean;
   gekopieerd: boolean;
   kopieer: () => void;
   acties: [Actie, string][];
-  markeer: (a: Actie) => void;
+  kies: (a: Actie) => void;
 }) {
   const isMail = taak.kanaal === "E-mail";
   return (
@@ -660,15 +803,9 @@ function TaakKaart({
           )
         )}
         {acties.map(([actie, label]) => (
-          <button
-            key={actie}
-            type="button"
-            className="dash-btn primary"
-            disabled={bezig}
-            onClick={() => markeer(actie)}
-          >
-            {bezig ? "Bezig…" : label}
-          </button>
+          <KeuzeKnop key={actie} gekozen={gekozen(actie)} onClick={() => kies(actie)}>
+            {label}
+          </KeuzeKnop>
         ))}
       </div>
     </li>

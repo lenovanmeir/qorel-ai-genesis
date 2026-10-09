@@ -291,3 +291,6 @@ html:has(.qa) {
 .qa .dash-key input { flex: 1 1 200px; min-width: 0; background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px; color: var(--text); font: inherit; }
 .qa .dash-error { margin: 0; color: var(--warm); font-size: 0.9rem; }
 @media (max-width: 560px) { .qa .dash-table { font-size: 0.82rem; } .qa .dash-table th, .qa .dash-table td { padding: 8px 6px; } .qa .dash-funnel-row { grid-template-columns: 100px minmax(0, 1fr) 32px; } }
+.qa .dash-btn.gekozen, .qa .dash-list .dash-btn.gekozen { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.qa .dash-save { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.qa .dash-save small { color: var(--muted, inherit); opacity: 0.8; }
