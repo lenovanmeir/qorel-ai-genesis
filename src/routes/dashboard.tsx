@@ -206,6 +206,8 @@ type Actie =
   | "opvolging1"
   | "opvolging2"
   | "geantwoord"
+  | "vraagknop_heeft"
+  | "vraagknop_geenknop"
   | "vraagknop_getikt"
   | "vraagknop_geen"
   | "vraagknop_wel";
@@ -408,8 +410,9 @@ function LiveVandaag({ dag }: { dag: "vandaag" | "morgen" }) {
               )}
             </div>
             <p className="dash-note">
-              Open de chat in de Instagram-app en tik op één voorgestelde vraag. Krijg je na 2,5 uur
-              geen antwoord, dan komt dat pijnpunt automatisch in hun DM.
+              Open de chat in de Instagram-app. Geen keuzeknoppen? Klik op &quot;Geen
+              keuzeknop&quot;. Wel? Tik op één voorgestelde vraag en klik op &quot;Getikt ✓&quot;.
+              Krijg je na 2,5 uur geen antwoord, dan komt dat pijnpunt automatisch in hun DM.
             </p>
             <ul className="dash-list plain">
               {(lijst.vraagknopTikken ?? []).map((t) => (
@@ -418,7 +421,11 @@ function LiveVandaag({ dag }: { dag: "vandaag" | "morgen" }) {
                     <b>
                       {t.naam} <small className="dash-rij">rij {t.rij}</small>
                     </b>
-                    <small>Nog te testen</small>
+                    <small>
+                      {t.vraagknop?.startsWith("Heeft")
+                        ? "Heeft keuzeknoppen: tik op één vraag"
+                        : "Nog te bekijken"}
+                    </small>
                   </span>
                   <span className="dash-actions">
                     {t.instagram && (
@@ -426,6 +433,24 @@ function LiveVandaag({ dag }: { dag: "vandaag" | "morgen" }) {
                         Open Instagram
                       </a>
                     )}
+                    {!t.vraagknop?.startsWith("Heeft") && (
+                      <button
+                        type="button"
+                        className="dash-btn"
+                        disabled={bezig === t.rij}
+                        onClick={() => void markeer(t, "vraagknop_heeft")}
+                      >
+                        Keuzeknop
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="dash-btn"
+                      disabled={bezig === t.rij}
+                      onClick={() => void markeer(t, "vraagknop_geenknop")}
+                    >
+                      Geen keuzeknop
+                    </button>
                     <button
                       type="button"
                       className="dash-btn primary"
