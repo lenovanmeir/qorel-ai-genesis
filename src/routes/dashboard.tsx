@@ -495,14 +495,13 @@ function LiveVandaag({ dag }: { dag: "vandaag" | "morgen" }) {
             Open Instagram
           </a>
         )}
-        {!t.vraagknop?.startsWith("Heeft") && (
-          <KeuzeKnop
-            gekozen={isGekozen(t.rij, "vraagknop_heeft")}
-            onClick={() => kies(t, "vraagknop_heeft")}
-          >
-            Keuzeknop
-          </KeuzeKnop>
-        )}
+        {/* Always shown; already lit when the sheet says the clinic has buttons. */}
+        <KeuzeKnop
+          gekozen={isGekozen(t.rij, "vraagknop_heeft") || Boolean(t.vraagknop?.startsWith("Heeft"))}
+          onClick={() => kies(t, "vraagknop_heeft")}
+        >
+          Keuzeknop
+        </KeuzeKnop>
         <KeuzeKnop
           gekozen={isGekozen(t.rij, "vraagknop_geenknop")}
           onClick={() => kies(t, "vraagknop_geenknop")}
