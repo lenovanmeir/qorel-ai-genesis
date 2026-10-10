@@ -218,7 +218,9 @@ type Keuze = { rij: number; actie: Actie; tijd: string };
 const KEUZE_OPSLAG = "qore-keuzes";
 
 // Marks on the same row only conflict within a group (one status, one question-button step, one date move).
+// "Keuzeknop" (seen) and "Getikt" (tapped) are separate groups so both can be marked on the same clinic.
 function groep(actie: Actie) {
+  if (actie === "vraagknop_heeft" || actie === "vraagknop_geenknop") return "zien";
   if (actie.startsWith("vraagknop_")) return "knop";
   if (actie === "naar_morgen") return "datum";
   return "status";
@@ -331,7 +333,14 @@ function LiveVandaag({ dag }: { dag: "vandaag" | "morgen" }) {
     const sleutelKeuze = `${taak.rij}:${groep(actie)}`;
     const nieuw = { ...keuzes };
     if (nieuw[sleutelKeuze]?.actie === actie) delete nieuw[sleutelKeuze];
-    else nieuw[sleutelKeuze] = { rij: taak.rij, actie, tijd: new Date().toISOString() };
+    else {
+      nieuw[sleutelKeuze] = { rij: taak.rij, actie, tijd: new Date().toISOString() };
+      // "Geen keuzeknop" and "Getikt" contradict each other: the last tap wins.
+      if (actie === "vraagknop_geenknop" && nieuw[`${taak.rij}:knop`]?.actie === "vraagknop_getikt")
+        delete nieuw[`${taak.rij}:knop`];
+      if (actie === "vraagknop_getikt" && nieuw[`${taak.rij}:zien`]?.actie === "vraagknop_geenknop")
+        delete nieuw[`${taak.rij}:zien`];
+    }
     zetKeuzes(nieuw);
   }
 
@@ -343,13 +352,21 @@ function LiveVandaag({ dag }: { dag: "vandaag" | "morgen" }) {
   async function verstuur(rijen: number[]) {
     const lijstKeuzes = keuzesVoor(rijen);
     if (lijstKeuzes.length === 0) return;
+    // A tap already proves the clinic has buttons, so "Keuzeknop" is not sent next to "Getikt"
+    // (both write column AA and the tap time must stay).
+    const getikt = new Set(
+      lijstKeuzes.filter(([, k]) => k.actie === "vraagknop_getikt").map(([, k]) => k.rij),
+    );
+    const acties = lijstKeuzes
+      .map(([, k]) => k)
+      .filter((k) => !(k.actie === "vraagknop_heeft" && getikt.has(k.rij)));
     setBezig(true);
     setFout("");
     try {
       const antwoord = await fetch(ACTIE_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sleutel, acties: lijstKeuzes.map(([, k]) => k) }),
+        body: JSON.stringify({ sleutel, acties }),
       });
       if (!antwoord.ok) throw new Error();
       const nieuw = { ...keuzes };
