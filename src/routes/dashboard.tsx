@@ -477,9 +477,30 @@ function LiveVandaag({ dag }: { dag: "vandaag" | "morgen" }) {
       />
       {fout && <p className="dash-error">{fout}</p>}
 
+      {/* Jump links, so the send list is one tap away even when the button-test list is long. */}
+      {!morgen && (
+        <nav className="dash-jump" aria-label="Spring naar">
+          {((lijst.vraagknopTikken?.length ?? 0) > 0 ||
+            (lijst.vraagknopWachten?.length ?? 0) > 0) && (
+            <a className="dash-btn" href="#dash-blok-knoppen">
+              Knoppen testen (
+              {(lijst.vraagknopTikken?.length ?? 0) + (lijst.vraagknopWachten?.length ?? 0)})
+            </a>
+          )}
+          <a className="dash-btn primary" href="#dash-blok-versturen">
+            Versturen ({deel.sturen.length})
+          </a>
+          {deel.opvolgen.length > 0 && (
+            <a className="dash-btn" href="#dash-blok-opvolgen">
+              Opvolgen ({deel.opvolgen.length})
+            </a>
+          )}
+        </nav>
+      )}
+
       {!morgen &&
         ((lijst.vraagknopTikken?.length ?? 0) > 0 || (lijst.vraagknopWachten?.length ?? 0) > 0) && (
-          <div className="dash-card">
+          <div className="dash-card" id="dash-blok-knoppen">
             <div className="dash-card-head">
               <h2>Vraagknoppen testen (op je telefoon)</h2>
               {(lijst.vraagknopWachten ?? []).some(
@@ -598,7 +619,7 @@ function LiveVandaag({ dag }: { dag: "vandaag" | "morgen" }) {
           </div>
         )}
 
-      <div className="dash-card">
+      <div className="dash-card" id="dash-blok-versturen">
         <div className="dash-card-head">
           <h2>{woord} versturen</h2>
           <button
@@ -645,7 +666,7 @@ function LiveVandaag({ dag }: { dag: "vandaag" | "morgen" }) {
       </div>
 
       {deel.opvolgen.length > 0 && (
-        <div className="dash-card">
+        <div className="dash-card" id="dash-blok-opvolgen">
           <h2>Opvolgen</h2>
           <ul className="dash-list">
             {deel.opvolgen.map((t) => (

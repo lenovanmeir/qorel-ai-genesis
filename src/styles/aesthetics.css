@@ -294,3 +294,20 @@ html:has(.qa) {
 .qa .dash-btn.gekozen, .qa .dash-list .dash-btn.gekozen { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
 .qa .dash-save { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
 .qa .dash-save small { color: var(--muted, inherit); opacity: 0.8; }
+.qa .dash-btn { white-space: nowrap; }
+.qa .dash-jump { display: flex; flex-wrap: wrap; gap: 8px; }
+.qa .dash-jump a { text-decoration: none; }
+.qa [id^="dash-blok-"] { scroll-margin-top: 12px; }
+/* Phone: name on top, buttons in a compact two-column grid underneath. */
+@media (max-width: 640px) {
+  .qa .dash-card { padding: 16px 14px; }
+  .qa .dash-list.plain li { flex-direction: column; align-items: stretch; gap: 10px; }
+  .qa .dash-list.plain li > .dash-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .qa .dash-actions .dash-btn { padding: 8px 10px; font-size: 0.82rem; }
+  .qa .dash-task .dash-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .qa .dash-card-head { flex-wrap: wrap; }
+  .qa .dash-kpis { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .qa .dash-kpi { padding: 10px 12px; }
+  .qa .dash-kpi b { font-size: 1.5rem; }
+  .qa .dash-kpi small { display: none; }
+}
