@@ -302,8 +302,14 @@ function LiveVandaag({ dag }: { dag: "vandaag" | "morgen" }) {
     }
   }
 
+  // A home-screen app or shortcut may not keep localStorage, so the code can also come in the
+  // link as #code=... (the part after # never reaches a server). It is removed from the address bar.
   useEffect(() => {
-    const code = leesSleutel();
+    const uitLink = new URLSearchParams(window.location.hash.slice(1)).get("code") ?? "";
+    if (uitLink) {
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
+    const code = uitLink || leesSleutel();
     if (code) void ophalen(code);
   }, []);
 
