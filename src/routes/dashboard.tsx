@@ -246,6 +246,17 @@ function bewaarKeuzes(keuzes: Record<string, Keuze>) {
 // without an answer the pain point goes into that clinic's DM.
 const VRAAGKNOP_WACHTTIJD = 150;
 
+// "dd/mm/yy" -> sortable number; unknown dates sort last.
+function datumWaarde(s: string | undefined) {
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{2})/.exec(String(s ?? "").trim());
+  return m ? Number(m[3]) * 10000 + Number(m[2]) * 100 + Number(m[1]) : 999999;
+}
+
+// Oldest date first, then sheet order: clinics that have waited longest come first.
+function oudsteEerst(a: Taak, b: Taak) {
+  return datumWaarde(a.datum) - datumWaarde(b.datum) || a.rij - b.rij;
+}
+
 function leesSleutel() {
   try {
     return localStorage.getItem(SLEUTEL_OPSLAG) ?? "";
@@ -292,7 +303,10 @@ function LiveVandaag({ dag }: { dag: "vandaag" | "morgen" }) {
         return;
       }
       if (!antwoord.ok) throw new Error();
-      setLijst((await antwoord.json()) as Lijst);
+      const data = (await antwoord.json()) as Lijst;
+      for (const l of [data.sturen, data.opvolgen, data.vraagknopTikken, data.vraagknopWachten])
+        l?.sort(oudsteEerst);
+      setLijst(data);
       setSleutel(code);
       bewaarSleutel(code);
     } catch {
@@ -456,6 +470,62 @@ function LiveVandaag({ dag }: { dag: "vandaag" | "morgen" }) {
     ? (lijst.morgen ?? { datum: "", sturen: [], opwarmen: [], opvolgen: [] })
     : lijst;
   const woord = morgen ? "Morgen" : "Vandaag";
+  // Button tests for clinics that get their DM today, and for clinics Claude warmed up for tomorrow.
+  const vandaagWaarde = datumWaarde(lijst.vandaag);
+  const tikNu = (lijst.vraagknopTikken ?? []).filter((t) => datumWaarde(t.datum) <= vandaagWaarde);
+  const opgewarmd = (lijst.vraagknopTikken ?? []).filter(
+    (t) => datumWaarde(t.datum) > vandaagWaarde,
+  );
+
+  const tikRij = (t: Taak, metNaarMorgen: boolean) => (
+    <li key={`tik-${t.rij}`}>
+      <span>
+        <b>
+          {t.naam} <small className="dash-rij">rij {t.rij}</small>
+        </b>
+        <small>
+          {t.vraagknop?.startsWith("Heeft")
+            ? "Heeft keuzeknoppen: tik op één vraag"
+            : "Nog te bekijken"}
+        </small>
+      </span>
+      <span className="dash-actions">
+        {t.instagram && (
+          <a className="dash-btn" href={t.instagram} target="_blank" rel="noreferrer">
+            Open Instagram
+          </a>
+        )}
+        {!t.vraagknop?.startsWith("Heeft") && (
+          <KeuzeKnop
+            gekozen={isGekozen(t.rij, "vraagknop_heeft")}
+            onClick={() => kies(t, "vraagknop_heeft")}
+          >
+            Keuzeknop
+          </KeuzeKnop>
+        )}
+        <KeuzeKnop
+          gekozen={isGekozen(t.rij, "vraagknop_geenknop")}
+          onClick={() => kies(t, "vraagknop_geenknop")}
+        >
+          Geen keuzeknop
+        </KeuzeKnop>
+        <KeuzeKnop
+          gekozen={isGekozen(t.rij, "vraagknop_getikt")}
+          onClick={() => kies(t, "vraagknop_getikt")}
+        >
+          Getikt ✓
+        </KeuzeKnop>
+        {metNaarMorgen && (
+          <KeuzeKnop
+            gekozen={isGekozen(t.rij, "naar_morgen")}
+            onClick={() => kies(t, "naar_morgen")}
+          >
+            Naar morgen
+          </KeuzeKnop>
+        )}
+      </span>
+    </li>
+  );
 
   return (
     <section className="dash-section">
@@ -480,16 +550,19 @@ function LiveVandaag({ dag }: { dag: "vandaag" | "morgen" }) {
       {/* Jump links, so the send list is one tap away even when the button-test list is long. */}
       {!morgen && (
         <nav className="dash-jump" aria-label="Spring naar">
-          {((lijst.vraagknopTikken?.length ?? 0) > 0 ||
-            (lijst.vraagknopWachten?.length ?? 0) > 0) && (
+          {(tikNu.length > 0 || (lijst.vraagknopWachten?.length ?? 0) > 0) && (
             <a className="dash-btn" href="#dash-blok-knoppen">
-              Knoppen testen (
-              {(lijst.vraagknopTikken?.length ?? 0) + (lijst.vraagknopWachten?.length ?? 0)})
+              Knoppen testen ({tikNu.length + (lijst.vraagknopWachten?.length ?? 0)})
             </a>
           )}
           <a className="dash-btn primary" href="#dash-blok-versturen">
             Versturen ({deel.sturen.length})
           </a>
+          {opgewarmd.length > 0 && (
+            <a className="dash-btn" href="#dash-blok-opgewarmd">
+              Opgewarmd ({opgewarmd.length})
+            </a>
+          )}
           {deel.opvolgen.length > 0 && (
             <a className="dash-btn" href="#dash-blok-opvolgen">
               Opvolgen ({deel.opvolgen.length})
@@ -498,126 +571,71 @@ function LiveVandaag({ dag }: { dag: "vandaag" | "morgen" }) {
         </nav>
       )}
 
-      {!morgen &&
-        ((lijst.vraagknopTikken?.length ?? 0) > 0 || (lijst.vraagknopWachten?.length ?? 0) > 0) && (
-          <div className="dash-card" id="dash-blok-knoppen">
-            <div className="dash-card-head">
-              <h2>Vraagknoppen testen (op je telefoon)</h2>
-              {(lijst.vraagknopWachten ?? []).some(
-                (t) => (t.minuten ?? 0) >= VRAAGKNOP_WACHTTIJD,
-              ) && (
-                <button type="button" className="dash-btn primary" onClick={allesGeenAntwoord}>
-                  Alles: geen antwoord
-                </button>
-              )}
-            </div>
-            <p className="dash-note">
-              Open de chat in de Instagram-app. Geen keuzeknoppen? Klik op &quot;Geen
-              keuzeknop&quot;. Wel? Tik op één voorgestelde vraag en klik op &quot;Getikt ✓&quot;.
-              Krijg je na 2,5 uur geen antwoord, dan komt dat pijnpunt automatisch in hun DM. Wat je
-              aanduidt, gaat pas weg als je onderaan op Versturen tikt.
-            </p>
-            <ul className="dash-list plain">
-              {(lijst.vraagknopTikken ?? []).map((t) => (
-                <li key={`tik-${t.rij}`}>
+      {!morgen && (tikNu.length > 0 || (lijst.vraagknopWachten?.length ?? 0) > 0) && (
+        <div className="dash-card" id="dash-blok-knoppen">
+          <div className="dash-card-head">
+            <h2>Vraagknoppen testen (op je telefoon)</h2>
+            {(lijst.vraagknopWachten ?? []).some(
+              (t) => (t.minuten ?? 0) >= VRAAGKNOP_WACHTTIJD,
+            ) && (
+              <button type="button" className="dash-btn primary" onClick={allesGeenAntwoord}>
+                Alles: geen antwoord
+              </button>
+            )}
+          </div>
+          <p className="dash-note">
+            Open de chat in de Instagram-app. Geen keuzeknoppen? Klik op &quot;Geen keuzeknop&quot;.
+            Wel? Tik op één voorgestelde vraag en klik op &quot;Getikt ✓&quot;. Krijg je na 2,5 uur
+            geen antwoord, dan komt dat pijnpunt automatisch in hun DM. Wat je aanduidt, gaat pas
+            weg als je onderaan op Versturen tikt.
+          </p>
+          <ul className="dash-list plain">
+            {tikNu.map((t) => tikRij(t, true))}
+            {(lijst.vraagknopWachten ?? []).map((t) => {
+              const klaar = (t.minuten ?? 0) >= VRAAGKNOP_WACHTTIJD;
+              return (
+                <li key={`wacht-${t.rij}`}>
                   <span>
                     <b>
                       {t.naam} <small className="dash-rij">rij {t.rij}</small>
                     </b>
                     <small>
-                      {t.vraagknop?.startsWith("Heeft")
-                        ? "Heeft keuzeknoppen: tik op één vraag"
-                        : "Nog te bekijken"}
+                      {klaar
+                        ? `Getikt ${String(Math.round((t.minuten ?? 0) / 6) / 10).replace(".", ",")} uur geleden: kwam er een antwoord?`
+                        : `Getikt, nog ${VRAAGKNOP_WACHTTIJD - (t.minuten ?? 0)} minuten wachten`}
                     </small>
                   </span>
                   <span className="dash-actions">
-                    {t.instagram && (
-                      <a className="dash-btn" href={t.instagram} target="_blank" rel="noreferrer">
-                        Open Instagram
-                      </a>
-                    )}
-                    {!t.vraagknop?.startsWith("Heeft") && (
+                    {klaar && (
                       <KeuzeKnop
-                        gekozen={isGekozen(t.rij, "vraagknop_heeft")}
-                        onClick={() => kies(t, "vraagknop_heeft")}
+                        gekozen={isGekozen(t.rij, "vraagknop_geen")}
+                        onClick={() => kies(t, "vraagknop_geen")}
                       >
-                        Keuzeknop
+                        Geen antwoord
                       </KeuzeKnop>
                     )}
                     <KeuzeKnop
-                      gekozen={isGekozen(t.rij, "vraagknop_geenknop")}
-                      onClick={() => kies(t, "vraagknop_geenknop")}
+                      gekozen={isGekozen(t.rij, "vraagknop_wel")}
+                      onClick={() => kies(t, "vraagknop_wel")}
                     >
-                      Geen keuzeknop
-                    </KeuzeKnop>
-                    <KeuzeKnop
-                      gekozen={isGekozen(t.rij, "vraagknop_getikt")}
-                      onClick={() => kies(t, "vraagknop_getikt")}
-                    >
-                      Getikt ✓
-                    </KeuzeKnop>
-                    <KeuzeKnop
-                      gekozen={isGekozen(t.rij, "naar_morgen")}
-                      onClick={() => kies(t, "naar_morgen")}
-                    >
-                      Naar morgen
+                      Wel antwoord
                     </KeuzeKnop>
                   </span>
                 </li>
-              ))}
-              {(lijst.vraagknopWachten ?? []).map((t) => {
-                const klaar = (t.minuten ?? 0) >= VRAAGKNOP_WACHTTIJD;
-                return (
-                  <li key={`wacht-${t.rij}`}>
-                    <span>
-                      <b>
-                        {t.naam} <small className="dash-rij">rij {t.rij}</small>
-                      </b>
-                      <small>
-                        {klaar
-                          ? `Getikt ${String(Math.round((t.minuten ?? 0) / 6) / 10).replace(".", ",")} uur geleden: kwam er een antwoord?`
-                          : `Getikt, nog ${VRAAGKNOP_WACHTTIJD - (t.minuten ?? 0)} minuten wachten`}
-                      </small>
-                    </span>
-                    <span className="dash-actions">
-                      {klaar && (
-                        <KeuzeKnop
-                          gekozen={isGekozen(t.rij, "vraagknop_geen")}
-                          onClick={() => kies(t, "vraagknop_geen")}
-                        >
-                          Geen antwoord
-                        </KeuzeKnop>
-                      )}
-                      <KeuzeKnop
-                        gekozen={isGekozen(t.rij, "vraagknop_wel")}
-                        onClick={() => kies(t, "vraagknop_wel")}
-                      >
-                        Wel antwoord
-                      </KeuzeKnop>
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-            <Verstuurbalk
-              aantal={
-                keuzesVoor(
-                  [...(lijst.vraagknopTikken ?? []), ...(lijst.vraagknopWachten ?? [])].map(
-                    (t) => t.rij,
-                  ),
-                ).length
-              }
-              bezig={bezig}
-              onClick={() =>
-                void verstuur(
-                  [...(lijst.vraagknopTikken ?? []), ...(lijst.vraagknopWachten ?? [])].map(
-                    (t) => t.rij,
-                  ),
-                )
-              }
-            />
-          </div>
-        )}
+              );
+            })}
+          </ul>
+          <Verstuurbalk
+            aantal={
+              keuzesVoor([...tikNu, ...(lijst.vraagknopWachten ?? [])].map((t) => t.rij)).length
+            }
+            bezig={bezig}
+            onClick={() =>
+              void verstuur([...tikNu, ...(lijst.vraagknopWachten ?? [])].map((t) => t.rij))
+            }
+          />
+        </div>
+      )}
 
       <div className="dash-card" id="dash-blok-versturen">
         <div className="dash-card-head">
@@ -698,6 +716,24 @@ function LiveVandaag({ dag }: { dag: "vandaag" | "morgen" }) {
               onClick={() => void verstuur(deel.opvolgen.map((t) => t.rij))}
             />
           )}
+        </div>
+      )}
+
+      {!morgen && opgewarmd.length > 0 && (
+        <div className="dash-card" id="dash-blok-opgewarmd">
+          <h2>Opgewarmd door Claude: morgen sturen</h2>
+          <p className="dash-note">
+            Claude heeft deze klinieken geliket en een reactie gegeven. Open ze in de Instagram-app,
+            volg ze en kijk of ze keuzeknoppen hebben. Wel? Tik op één vraag en duid &quot;Getikt
+            ✓&quot; aan. Morgen kijkt Claude of ze antwoordden en zet hij zelf de PS in hun DM,
+            zodat jij alleen nog moet versturen.
+          </p>
+          <ul className="dash-list plain">{opgewarmd.map((t) => tikRij(t, false))}</ul>
+          <Verstuurbalk
+            aantal={keuzesVoor(opgewarmd.map((t) => t.rij)).length}
+            bezig={bezig}
+            onClick={() => void verstuur(opgewarmd.map((t) => t.rij))}
+          />
         </div>
       )}
 
