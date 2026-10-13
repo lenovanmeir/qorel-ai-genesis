@@ -83,8 +83,17 @@ function bouwLijst(leads: Lead[]) {
   const vraagknopTikken: unknown[] = [];
   const vraagknopWachten: unknown[] = [];
 
+  // Leno's daily flow (13/10): day 1 warm up + look for question buttons, day 2 tap one, wait 2,5 h, then send.
+  // The button step (column AA) is still open while AA is empty, says "Heeft vraagknoppen", or was tapped
+  // without an outcome ("->"). While it is open an Instagram DM waits in the button blocks, not in Versturen.
+  // "Geen vraagknoppen", "Privéaccount", "Niet meer testen" or any "->" outcome closes the step.
+  const knopStapOpen = (aa: string) => !aa.trim() || aa.startsWith("Heeft vraagknoppen") || (aa.includes("Getikt") && !aa.includes("->"));
+  // Clinics with a demo or an answer are handled in the Demo's tab / by Leno, never in the daily blocks.
+  const BUITEN_DAGLIJST = new Set(["Demo klaar", "Demo verstuurd", "Geantwoord"]);
+
   for (const l of leads) {
     const status = l.status;
+    if (BUITEN_DAGLIJST.has(status)) continue;
     const datum = isoWaarde(l.opvolgen_op);
     const aa = l.vraagknop ?? "";
     const opwarmen = l.opwarmen ?? "";
@@ -102,8 +111,11 @@ function bouwLijst(leads: Lead[]) {
       vraagknop: aa.replace(/\s*\[[^\]]+\]/, ""),
     };
     const klaar = ["Opwarmen", "Klaar om te sturen"].includes(status) && !!l.bericht;
-    if (klaar && datum !== null && datum <= vt) nu.sturen.push({ ...basis, bericht: l.bericht });
-    if (klaar && datum === mt) straks.sturen.push({ ...basis, bericht: l.bericht });
+    const instagram = l.contact_via === "Instagram-DM";
+    // Mail clinics have no button step; Instagram DMs only once the button step is done.
+    const magSturen = klaar && (!instagram || !knopStapOpen(aa));
+    if (magSturen && datum !== null && datum <= vt) nu.sturen.push({ ...basis, bericht: l.bericht });
+    if (magSturen && datum === mt) straks.sturen.push({ ...basis, bericht: l.bericht });
     if (status === "Opwarmen" && opwarmen.startsWith(vandaag.slice(0, 5)))
       nu.opwarmen.push({ ...basis, uitleg: opwarmen, reactie: l.reactie_opwarmen ?? "" });
     if (status === "Opwarmen" && opwarmen.startsWith(morgen.slice(0, 5)))
@@ -116,20 +128,31 @@ function bouwLijst(leads: Lead[]) {
     if (status === "Nakijken") nakijken.push(basis);
     // Question-button test: Instagram clinics that get a DM today or tomorrow and were not checked yet,
     // or that have buttons Leno has not tapped yet.
-    if (klaar && l.contact_via === "Instagram-DM" && datum !== null && datum <= mt && (!aa.trim() || aa.startsWith("Heeft vraagknoppen")))
+    if (klaar && instagram && datum !== null && datum <= mt && (!aa.trim() || aa.startsWith("Heeft vraagknoppen")))
       vraagknopTikken.push(basis);
     const iso = getiktIso(aa);
     if (iso && !aa.includes("->") && klaar)
       vraagknopWachten.push({ ...basis, minuten: Math.round((Date.now() - Date.parse(iso)) / 60000) });
   }
+
+  // One clinic in at most one block per day: the first block in this order keeps it.
+  const gezien = new Set<number>();
+  const uniek = <T extends { rij: number }>(lijst: T[]) =>
+    lijst.filter((t) => (gezien.has(t.rij) ? false : (gezien.add(t.rij), true)));
+  const wachten = uniek(vraagknopWachten as { rij: number }[]);
+  const tikken = uniek(vraagknopTikken as { rij: number }[]);
+  const sturen = uniek(nu.sturen as { rij: number }[]);
+  const opvolgen = uniek(nu.opvolgen as { rij: number }[]);
+  const opwarmenVandaag = uniek(nu.opwarmen as { rij: number }[]);
+  const nakijkenUniek = uniek(nakijken as { rij: number }[]);
   return {
     vandaag,
-    sturen: nu.sturen,
-    opwarmen: nu.opwarmen,
-    opvolgen: nu.opvolgen,
-    nakijken,
-    vraagknopTikken,
-    vraagknopWachten,
+    sturen,
+    opwarmen: opwarmenVandaag,
+    opvolgen,
+    nakijken: nakijkenUniek,
+    vraagknopTikken: tikken,
+    vraagknopWachten: wachten,
     morgen: { datum: morgen, ...straks },
   };
 }
