@@ -22,6 +22,8 @@ export const Route = createFileRoute("/intake/$code")({
 // n8n bewaart de antwoorden en geeft ze terug, zodat de eigenaar op elk toestel verder kan.
 const API_URL = "https://qorelabs.app.n8n.cloud/webhook/qore-intake";
 const DEMO_URL = "https://qorelabs.app.n8n.cloud/webhook/qa-demo";
+// Same key as the dashboard, so the code Leno typed there is filled in here too.
+const BEHEERCODE_OPSLAG = "qore-beheercode";
 
 type Vestiging = {
   naam: string;
@@ -252,8 +254,17 @@ function IntakePage() {
   const [serverStatus, setServerStatus] = useState<string | null>(null);
   const [opslaan, setOpslaan] = useState(false);
   const [bijgewerkt, setBijgewerkt] = useState<{ gelukt: boolean; om: string } | null>(null);
-  const [demo, setDemo] = useState<"klaar" | "bezig" | "verstuurd" | "al" | "fout">("klaar");
+  const [demo, setDemo] = useState<"klaar" | "bezig" | "verstuurd" | "al" | "fout" | "code">("klaar");
   const [demoTot, setDemoTot] = useState<string | null>(null);
+  // Demo gate: sending needs Leno's beheercode, so nobody else (Claude included) can send a demo he hasn't reviewed.
+  const [beheercode, setBeheercode] = useState("");
+  useEffect(() => {
+    try {
+      setBeheercode(localStorage.getItem(BEHEERCODE_OPSLAG) ?? "");
+    } catch {
+      // Without storage Leno types the code each time.
+    }
+  }, []);
   const geladen = useRef(false);
   // Wat de chatbot nu gebruikt, om te zien of er iets gewijzigd is dat nog niet opgeslagen werd.
   const laatstOpgeslagen = useRef<string | null>(null);
@@ -411,6 +422,10 @@ function IntakePage() {
 
   // Leno: eerst opslaan (zodat de demo zijn wijzigingen kent), dan de demolink naar de kliniek mailen.
   const demoVersturen = async () => {
+    if (!beheercode.trim()) {
+      setDemo("code");
+      return;
+    }
     setDemo("bezig");
     setFout(null);
     try {
@@ -424,10 +439,19 @@ function IntakePage() {
       const response = await fetch(DEMO_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ actie: "versturen", code, nakijk }),
+        body: JSON.stringify({ actie: "versturen", code, nakijk, sleutel: beheercode.trim() }),
       });
+      if (response.status === 403) {
+        setDemo("code");
+        return;
+      }
       const antwoord = (await response.json().catch(() => ({}))) as { ok?: boolean; al_verstuurd?: boolean; verloopt_op?: string };
       if (!response.ok || !antwoord.ok) throw new Error(`status ${response.status}`);
+      try {
+        localStorage.setItem(BEHEERCODE_OPSLAG, beheercode.trim());
+      } catch {
+        // Storage can be blocked; the code then has to be typed again next time.
+      }
       setDemoTot(antwoord.verloopt_op ?? null);
       setDemo(antwoord.al_verstuurd ? "al" : "verstuurd");
     } catch {
@@ -800,6 +824,24 @@ function IntakePage() {
                     <p className="text-muted-foreground">
                       Alles nagekeken? Dan slaan we je wijzigingen op en mailen we de kliniek haar demolink. De 7 dagen starten bij haar eerste vraag.
                     </p>
+                    <input
+                      id="demo-beheercode"
+                      type="password"
+                      value={beheercode}
+                      onChange={(e) => {
+                        setBeheercode(e.target.value);
+                        if (demo === "code") setDemo("klaar");
+                      }}
+                      placeholder="Beheercode"
+                      aria-label="Beheercode"
+                      autoComplete="current-password"
+                      className="rounded-full border border-input bg-background px-4 py-2.5 text-sm text-foreground"
+                    />
+                    {demo === "code" && (
+                      <p className="text-destructive">
+                        {beheercode.trim() ? "Die beheercode klopt niet. Er is niets verstuurd." : "Vul je beheercode in om te versturen."}
+                      </p>
+                    )}
                     <button
                       type="button"
                       onClick={demoVersturen}
