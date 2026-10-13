@@ -970,6 +970,7 @@ type Demo = {
   id: string;
   kliniek: string;
   instagram: string;
+  website: string;
   taal: string;
   status: string;
   fout: string;
@@ -1246,6 +1247,17 @@ function Demos() {
                       rel="noreferrer"
                     >
                       Zelf testen
+                    </a>
+                  )}
+                  {/* The clinic's own site, to check what the demo knows against the source. */}
+                  {d.website && (
+                    <a
+                      className="dash-btn"
+                      href={/^https?:/i.test(d.website) ? d.website : `https://${d.website}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Website
                     </a>
                   )}
                   {kanSturen && chat && (
