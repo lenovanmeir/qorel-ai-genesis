@@ -114,7 +114,7 @@ function Dashboard() {
               QORE<small>DASHBOARD</small>
             </span>
           </span>
-          <span className="dash-badge">Vandaag &amp; morgen: live · rest: voorbeeld</span>
+          <span className="dash-badge">Vandaag, morgen &amp; demo's: live · rest: voorbeeld</span>
         </nav>
 
         <div className="dash-tabs" role="tablist" aria-label="Onderdelen">
@@ -961,35 +961,319 @@ function Leads({ open }: { open: (f: Fiche) => void }) {
   );
 }
 
+// Live demos from Supabase demo_aanvragen, delivered in the same n8n answer as the list of today.
+const DEMO_ACTIE_URL = "https://qorelabs.app.n8n.cloud/webhook/qa-dashboard-demo-actie";
+
+type DemoVraag = { onderwerp: string; vraag: string; antwoord: string; goed: boolean };
+
+type Demo = {
+  id: string;
+  kliniek: string;
+  instagram: string;
+  taal: string;
+  status: string;
+  fout: string;
+  code: string;
+  token: string;
+  nakijk: string;
+  verstuurd_op: string | null;
+  verloopt_op: string | null;
+  gebruikt: number;
+  max: number;
+  meer_tijd: string | null;
+  dm_tekst: string;
+  dm_verstuurd_op: string | null;
+  controle: {
+    ok: number;
+    totaal: number;
+    vragen?: DemoVraag[];
+    paginas?: number;
+    behandelingen?: number;
+    metPrijs?: number;
+    vestigingen?: number;
+    adres?: boolean;
+  } | null;
+};
+
+type DemoStaat = {
+  label: string;
+  soort: "ok" | "warn" | "accent" | "";
+  uitleg: string;
+  volgorde: number;
+};
+
+function demoStaat(d: Demo): DemoStaat {
+  if (d.status === "mislukt" || d.status === "geen_website")
+    return {
+      label: "Mislukt",
+      soort: "",
+      uitleg: d.fout || "Geen website om te lezen.",
+      volgorde: 5,
+    };
+  if (d.status === "bouwen")
+    return { label: "Wordt gebouwd", soort: "", uitleg: "Even geduld.", volgorde: 4 };
+  if (!d.verstuurd_op)
+    return {
+      label: "Nakijken",
+      soort: "warn",
+      uitleg:
+        "Kijk na en druk op « Klaar – verstuur demo ». Pas dan werkt de link voor de kliniek.",
+      volgorde: 1,
+    };
+  if (d.verloopt_op && Date.parse(d.verloopt_op) < Date.now())
+    return {
+      label: "Verlopen",
+      soort: "",
+      uitleg: `${d.gebruikt} van ${d.max} berichten gebruikt.`,
+      volgorde: 3,
+    };
+  if (d.meer_tijd)
+    return {
+      label: "Meer tijd gevraagd",
+      soort: "warn",
+      uitleg: "Verleng via de knop in Telegram.",
+      volgorde: 1,
+    };
+  if (d.gebruikt > 0)
+    return {
+      label: `In gebruik: ${d.gebruikt}/${d.max}`,
+      soort: "ok",
+      uitleg: d.verloopt_op
+        ? `Werkt tot ${new Date(d.verloopt_op).toLocaleDateString("nl-BE")}.`
+        : "",
+      volgorde: 2,
+    };
+  if (d.dm_verstuurd_op)
+    return {
+      label: "DM verstuurd",
+      soort: "accent",
+      uitleg: "Nog geen vraag gesteld.",
+      volgorde: 3,
+    };
+  return {
+    label: "Link werkt",
+    soort: "ok",
+    uitleg: "Klaar om op Instagram te sturen.",
+    volgorde: 0,
+  };
+}
+
+function demoLink(d: Demo) {
+  return `https://qoreaesthetics.com/demo/${d.token}`;
+}
+
+// Claude writes a message per clinic in dm_tekst; without one the dashboard offers a standard text.
+function demoBericht(d: Demo) {
+  if (d.dm_tekst) return d.dm_tekst;
+  const link = demoLink(d);
+  if (d.taal === "fr")
+    return `Bonjour ! 😊 Voici votre démo : ${link}\n\nTestez-la vous-même, comme une patiente qui pose une question. Elle connaît les soins et les tarifs de votre site. Si une info n'y figure pas, elle le dit honnêtement. La démo fonctionne 7 jours à partir de votre première question, pour 30 messages.\n\nDites-moi ce que vous en pensez !\nLeno`;
+  if (d.taal === "en")
+    return `Hi! 😊 Here is your demo: ${link}\n\nTest it yourself, like a patient asking a question. It knows the treatments and prices on your website. If something isn't there, it says so honestly. The demo works for 7 days from your first question, for 30 messages.\n\nLet me know what you think!\nLeno`;
+  return `Dag! 😊 Hier is jullie demo: ${link}\n\nTest hem gerust zelf, alsof je een patiënt bent die een vraag stuurt. Hij kent de behandelingen en prijzen van jullie website. Staat iets er niet op, dan zegt hij dat eerlijk. De demo werkt 7 dagen vanaf jullie eerste vraag, voor 30 berichten.\n\nLaat me gerust weten wat jullie ervan vinden!\nLeno`;
+}
+
+// ig.me opens the chat itself instead of the profile, so Leno only has to paste.
+function instagramChat(handle: string) {
+  const h = handle
+    .replace(/^@/, "")
+    .replace(/^https?:\/\/(www\.)?instagram\.com\//, "")
+    .replace(/\/.*$/, "");
+  return h ? `https://ig.me/m/${h}` : "";
+}
+
 function Demos() {
-  const rijen: [string, string, string, string][] = [
-    ["Kliniek Aurora", "In gebruik", "29 van 30 berichten over", "tot zondag 11 okt"],
-    ["Atelier Lumi", "Verstuurd", "nog geen vraag", "dag 3: stuur een berichtje"],
-    ["Studio Velvet", "Bijna op", "3 berichten over", "meer tijd gevraagd"],
-  ];
+  const [sleutel] = useState(leesSleutel);
+  const [demos, setDemos] = useState<Demo[] | null>(null);
+  const [fout, setFout] = useState("");
+  const [laden, setLaden] = useState(false);
+  const [gekopieerd, setGekopieerd] = useState("");
+  const [bezig, setBezig] = useState("");
+
+  async function ophalen() {
+    if (!sleutel) return;
+    setLaden(true);
+    setFout("");
+    try {
+      const antwoord = await fetch(`${VANDAAG_URL}?sleutel=${encodeURIComponent(sleutel)}`);
+      if (!antwoord.ok) throw new Error();
+      const data = (await antwoord.json()) as { demos?: Demo[] };
+      setDemos(data.demos ?? []);
+    } catch {
+      setFout("De demo's konden niet geladen worden. Probeer het zo opnieuw.");
+    } finally {
+      setLaden(false);
+    }
+  }
+
+  useEffect(() => {
+    void ophalen();
+  }, []);
+
+  async function kopieer(d: Demo) {
+    try {
+      await navigator.clipboard.writeText(demoBericht(d));
+      setGekopieerd(d.code);
+      setTimeout(() => setGekopieerd(""), 2500);
+    } catch {
+      setFout("Kopiëren lukte niet. Selecteer de tekst en kopieer hem zelf.");
+    }
+  }
+
+  async function dmVerstuurd(d: Demo) {
+    setBezig(d.code);
+    setFout("");
+    try {
+      const antwoord = await fetch(DEMO_ACTIE_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sleutel,
+          code: d.code,
+          actie: d.dm_verstuurd_op ? "dm_niet_verstuurd" : "dm_verstuurd",
+        }),
+      });
+      if (!antwoord.ok) throw new Error();
+      await ophalen();
+    } catch {
+      setFout("Bewaren lukte niet. Probeer het opnieuw.");
+    } finally {
+      setBezig("");
+    }
+  }
+
+  if (!sleutel) {
+    return (
+      <section className="dash-section">
+        <p className="dash-note">Open eerst Vandaag en vul daar je beheercode in.</p>
+      </section>
+    );
+  }
+
+  if (!demos) {
+    return (
+      <section className="dash-section">
+        <p className="dash-note">{fout || "Demo's laden…"}</p>
+      </section>
+    );
+  }
+
+  const lijst = [...demos].sort((a, b) => demoStaat(a).volgorde - demoStaat(b).volgorde);
+  const teSturen = demos.filter((d) => demoStaat(d).volgorde === 0).length;
+  const nakijken = demos.filter((d) => demoStaat(d).label === "Nakijken").length;
+  const inGebruik = demos.filter((d) => d.gebruikt > 0).length;
+
   return (
     <section className="dash-section">
+      <Cijfers
+        items={[
+          ["Klaar om te sturen", String(teSturen), "link werkt, DM nog niet verstuurd"],
+          ["Nakijken", String(nakijken), "eerst activeren"],
+          ["In gebruik", String(inGebruik), "kliniek stelde al vragen"],
+        ]}
+      />
+      {fout && <p className="dash-error">{fout}</p>}
       <div className="dash-card">
-        <h2>Demo's</h2>
-        <table className="dash-table">
-          <thead>
-            <tr>
-              <th>Kliniek</th>
-              <th>Status</th>
-              <th>Berichten</th>
-              <th>Let op</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rijen.map((r) => (
-              <tr key={r[0]}>
-                {r.map((c, i) => (
-                  <td key={i}>{c}</td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="dash-card-head">
+          <h2>Demo's</h2>
+          <button
+            type="button"
+            className="dash-btn"
+            onClick={() => void ophalen()}
+            disabled={laden}
+          >
+            {laden ? "Laden…" : "Vernieuwen"}
+          </button>
+        </div>
+        {lijst.length === 0 && <p className="dash-note">Nog geen demo's.</p>}
+        <ul className="dash-list">
+          {lijst.map((d) => {
+            const staat = demoStaat(d);
+            const c = d.controle;
+            const chat = instagramChat(d.instagram);
+            const kanSturen = Boolean(d.verstuurd_op) && d.status !== "mislukt";
+            return (
+              <li key={d.id} className="dash-task">
+                <div className="dash-task-head">
+                  <span>
+                    <b>{d.kliniek}</b>
+                    <small>
+                      {d.instagram ? `@${d.instagram.replace(/^@/, "")} · ` : ""}
+                      {d.taal.toUpperCase()} · {staat.uitleg}
+                    </small>
+                  </span>
+                  <em className={`dash-pill ${staat.soort}`}>{staat.label}</em>
+                </div>
+                {c && (
+                  <details>
+                    <summary className="dash-note">
+                      Testvragen {c.ok}/{c.totaal} beantwoord · {c.behandelingen ?? 0}{" "}
+                      behandelingen, {c.metPrijs ?? 0} met prijs · {c.vestigingen ?? 0}{" "}
+                      vestiging(en)
+                      {c.adres === false ? " zonder adres" : ""}
+                    </summary>
+                    <ul className="dash-list plain">
+                      {(c.vragen ?? []).map((v) => (
+                        <li key={v.onderwerp}>
+                          <span>
+                            <b>
+                              {v.goed ? "✅" : "⚠️"} {v.onderwerp}
+                            </b>
+                            <small>{v.antwoord || "geen antwoord"}</small>
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
+                {d.status !== "mislukt" && <p className="dash-msg">{demoBericht(d)}</p>}
+                <div className="dash-actions">
+                  {d.code && d.nakijk && (
+                    <a
+                      className="dash-btn"
+                      href={`https://qoreaesthetics.com/intake/${d.code}?nakijk=${d.nakijk}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Nakijken
+                    </a>
+                  )}
+                  {d.token && d.nakijk && d.status !== "mislukt" && (
+                    <a
+                      className="dash-btn"
+                      href={`${demoLink(d)}?nakijk=${d.nakijk}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Zelf testen
+                    </a>
+                  )}
+                  {kanSturen && chat && (
+                    <a
+                      className="dash-btn primary"
+                      href={chat}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={() => void kopieer(d)}
+                    >
+                      {gekopieerd === d.code
+                        ? "Gekopieerd ✓ plak in Instagram"
+                        : "Kopieer & open Instagram"}
+                    </a>
+                  )}
+                  {kanSturen && (
+                    <KeuzeKnop
+                      gekozen={Boolean(d.dm_verstuurd_op)}
+                      onClick={() => void dmVerstuurd(d)}
+                    >
+                      {bezig === d.code ? "Bewaren…" : "DM verstuurd ✓"}
+                    </KeuzeKnop>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
       </div>
     </section>
   );
