@@ -168,6 +168,19 @@ function Cijfers({ items }: { items: [string, string, string?][] }) {
 
 // Live list for today, read from the Leads tab by n8n workflow "Dashboard vandaag (Leads)".
 const VANDAAG_URL = "https://qorelabs.app.n8n.cloud/webhook/qa-dashboard-vandaag";
+// Same lists straight from the database (Supabase Edge Function "dashboard"): faster and no n8n run per load.
+const LIJST_URL = "https://gqigmmezcmtwusgbdxny.supabase.co/functions/v1/dashboard";
+
+// Reads the list from the database; only if that fails for another reason than a wrong code, n8n answers instead.
+async function haalLijst(code: string): Promise<Response> {
+  try {
+    const antwoord = await fetch(LIJST_URL, { headers: { "x-beheercode": code } });
+    if (antwoord.ok || antwoord.status === 403) return antwoord;
+  } catch {
+    // Network or function trouble: fall back to n8n below.
+  }
+  return fetch(`${VANDAAG_URL}?sleutel=${encodeURIComponent(code)}`);
+}
 const ACTIE_URL = "https://qorelabs.app.n8n.cloud/webhook/qa-dashboard-actie";
 const SLEUTEL_OPSLAG = "qore-beheercode";
 
@@ -296,7 +309,7 @@ function LiveVandaag({ dag }: { dag: "vandaag" | "morgen" }) {
     setLaden(true);
     setFout("");
     try {
-      const antwoord = await fetch(`${VANDAAG_URL}?sleutel=${encodeURIComponent(code)}`);
+      const antwoord = await haalLijst(code);
       if (antwoord.status === 403) {
         setFout("Die beheercode klopt niet.");
         setSleutel("");
@@ -1096,7 +1109,7 @@ function Demos() {
     setLaden(true);
     setFout("");
     try {
-      const antwoord = await fetch(`${VANDAAG_URL}?sleutel=${encodeURIComponent(sleutel)}`);
+      const antwoord = await haalLijst(sleutel);
       if (!antwoord.ok) throw new Error();
       const data = (await antwoord.json()) as { demos?: Demo[] };
       setDemos(data.demos ?? []);
