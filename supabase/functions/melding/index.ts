@@ -31,17 +31,34 @@ const kort = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…`
 type Gebeurtenis = { id: number; lead_id: string; soort: string; data: Record<string, unknown>; op: string };
 type Lead = { kliniek: string; stad: string | null; instagram: string | null; email: string | null; telefoon: string | null };
 
-// The ready-to-send DM after a used demo, in the demo's language. It names the clinic's own first question.
-function opvolgDm(kliniek: string, vraag: string, taal: string): string {
+// The ready-to-send DM after a used demo, in the demo's language, built on the value equation (offers skill):
+// dream outcome = every question answered even at 23:00; likelihood = they just saw it answer their own question,
+// plus the go-live guarantee; time = live within 10 working days, a 15-minute call; effort = we read their site,
+// they only approve. The only scarcity is real: the date their demo stops. Brand voice: calm, no exclamation marks.
+function opvolgDm(kliniek: string, vraag: string, taal: string, verloopt: string | null): string {
   const onderwerp = kort(vraag.replace(/\s+/g, " ").trim(), 60);
+  const datum = (locale: string) =>
+    verloopt ? new Date(verloopt).toLocaleDateString(locale, { timeZone: "Europe/Brussels", day: "numeric", month: "long" }) : "";
   if (taal === "fr")
-    return `Bonjour ! J'ai vu que vous avez testé votre démo et demandé « ${onderwerp} ». Je vous montre en 15 minutes comment ça marcherait pour ${kliniek} ? Choisissez un moment ici : ${AGENDA}\n\nLeno`;
-  return `Hoi! Ik zag dat jullie de demo testten en vroegen naar "${onderwerp}". Zal ik in 15 minuten tonen hoe dat er voor ${kliniek} uitziet? Kies gerust een moment: ${AGENDA}\n\nLeno`;
+    return [
+      `Bonjour, j'ai vu que vous avez testé la démo de ${kliniek} avec la question « ${onderwerp} ». C'est exactement ce que chaque patiente recevrait, même à 23h : une réponse immédiate avec vos propres informations.`,
+      `La mise en place ne vous demande pas de travail : nous lisons votre site, vous validez. En ligne en 10 jours ouvrables, sinon les frais de démarrage vous sont remboursés.`,
+      `On regarde ensemble en 15 minutes ce que ça donnerait pour ${kliniek} ? Choisissez un moment : ${AGENDA}` +
+        (verloopt ? `\nVotre démo reste active jusqu'au ${datum("fr-BE")}.` : ""),
+      "Leno",
+    ].join("\n\n");
+  return [
+    `Hoi, ik zag dat jullie de demo van ${kliniek} testten met de vraag "${onderwerp}". Zo zou elke klant het krijgen, ook om 23u: meteen een antwoord, met jullie eigen info.`,
+    `Live zetten kost jullie geen werk: wij lezen de website in, jullie keuren alleen goed. Live binnen 10 werkdagen, anders krijgen jullie de opstart terug.`,
+    `Zullen we in 15 minuten bekijken hoe dat er voor ${kliniek} uitziet? Kies een moment: ${AGENDA}` +
+      (verloopt ? `\nJullie demo loopt nog tot ${datum("nl-BE")}.` : ""),
+    "Leno",
+  ].join("\n\n");
 }
 
 async function berichtDemoGebruikt(leadId: string, lead: Lead): Promise<string> {
-  const demos = await db<{ id: string; taal: string | null; token: string }[]>(
-    `demo_aanvragen?select=id,taal,token&lead_id=eq.${leadId}&order=created_at.desc&limit=1`,
+  const demos = await db<{ id: string; kliniek: string; taal: string | null; token: string; verloopt_op: string | null }[]>(
+    `demo_aanvragen?select=id,kliniek,taal,token,verloopt_op&lead_id=eq.${leadId}&order=created_at.desc&limit=1`,
   );
   const demo = demos[0];
   const vragen = demo
@@ -52,7 +69,10 @@ async function berichtDemoGebruikt(leadId: string, lead: Lead): Promise<string> 
   const lijst = vragen.length
     ? vragen.map((v) => `• ${html(kort(v.inhoud, 140))}`).join("\n")
     : "• (de vraag zelf is nog niet geladen)";
-  const dm = opvolgDm(lead.kliniek, vragen[0]?.inhoud ?? "jullie behandelingen", demo?.taal ?? "nl");
+  const verloopt = demo?.verloopt_op && Date.parse(demo.verloopt_op) > Date.now() ? demo.verloopt_op : null;
+  // The demo request holds the clean name ("Nōré"); the lead often has an Instagram-style one ("nore.clinic | ...").
+  const naam = demo?.kliniek?.trim() || lead.kliniek.split(" | ")[0];
+  const dm = opvolgDm(naam, vragen[0]?.inhoud ?? "jullie behandelingen", demo?.taal ?? "nl", verloopt);
   return [
     `🔥 <b>${html(lead.kliniek)} gebruikt nu haar demo</b>`,
     [lead.stad, lead.instagram].filter(Boolean).map(html).join(" · "),
