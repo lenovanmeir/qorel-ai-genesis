@@ -117,7 +117,7 @@ const nl: Teksten = {
     lede: "Een AI-receptioniste die antwoordt op Instagram, WhatsApp, Facebook en je website, met jouw prijzen, jouw behandelingen en in jouw toon. In het Nederlands, Frans en Engels.",
     ctaPrimary: "Vraag je gratis demo aan →",
     ctaSecondary: "Probeer de demo",
-    micro: ["Gebouwd met jouw eigen info", "Geen betaalgegevens nodig", "Live binnen 10 werkdagen, of je opstart terug"],
+    micro: ["Gebouwd met jouw eigen info", "Geen betaalgegevens nodig", "Live binnen 4 werkdagen, of je opstart terug"],
   },
   facts: {
     label: "Kerngegevens",
@@ -151,9 +151,9 @@ const nl: Teksten = {
       { h: "Jij keurt goed", p: "Je vult je intake aan, test met je team en we passen aan tot alles klopt. Pas na jouw goedkeuring gaan we live." },
       { h: "Live", p: "Op je Instagram, WhatsApp, Facebook en website. Vanaf dan antwoordt je receptioniste dag en nacht." },
     ],
-    guaranteeTitle: "Binnen 10 werkdagen live, of je opstart terug.",
+    guaranteeTitle: "Binnen 4 werkdagen live, of je opstart terug.",
     guaranteeText:
-      "De termijn start zodra je volledige intake, je betaling en de toegang tot je kanalen binnen zijn. WhatsApp valt erbuiten, omdat Meta dat eerst moet verifiëren. En de eerste 30 dagen na de livegang passen we kosteloos aan tot alles klopt.",
+      "De termijn start zodra je volledige intake, je betaling en de toegang tot je kanalen binnen zijn. Zolang we op jouw goedkeuring of antwoord wachten, staat de klok stil. WhatsApp valt erbuiten, omdat Meta dat eerst moet verifiëren. En de eerste 30 dagen na de livegang passen we kosteloos aan tot alles klopt.",
   },
   report: {
     eyebrow: "Maandrapport",
@@ -284,7 +284,7 @@ const fr: Teksten = {
     lede: "Une réceptionniste IA qui répond sur Instagram, WhatsApp, Facebook et votre site, avec vos prix, vos soins et dans votre ton. En néerlandais, en français et en anglais.",
     ctaPrimary: "Demandez votre démo gratuite →",
     ctaSecondary: "Essayer la démo",
-    micro: ["Construite avec vos propres infos", "Aucune donnée de paiement", "En ligne en 10 jours ouvrables, ou mise en place remboursée"],
+    micro: ["Construite avec vos propres infos", "Aucune donnée de paiement", "En ligne en 4 jours ouvrables, ou mise en place remboursée"],
   },
   facts: {
     label: "En bref",
@@ -318,9 +318,9 @@ const fr: Teksten = {
       { h: "Vous validez", p: "Vous complétez votre questionnaire, testez avec votre équipe et nous ajustons jusqu'à ce que tout soit juste. Nous passons en ligne seulement après votre accord." },
       { h: "En ligne", p: "Sur votre Instagram, WhatsApp, Facebook et votre site. Dès ce moment, votre réceptionniste répond jour et nuit." },
     ],
-    guaranteeTitle: "En ligne en 10 jours ouvrables, ou la mise en place vous est remboursée.",
+    guaranteeTitle: "En ligne en 4 jours ouvrables, ou la mise en place vous est remboursée.",
     guaranteeText:
-      "Le délai démarre dès réception de votre questionnaire complet, de votre paiement et de l'accès à vos canaux. WhatsApp n'est pas compris, car Meta doit d'abord le vérifier. Et pendant les 30 premiers jours après la mise en ligne, nous ajustons gratuitement jusqu'à ce que tout soit juste.",
+      "Le délai démarre dès réception de votre questionnaire complet, de votre paiement et de l'accès à vos canaux. Tant que nous attendons votre validation ou votre réponse, le délai est suspendu. WhatsApp n'est pas compris, car Meta doit d'abord le vérifier. Et pendant les 30 premiers jours après la mise en ligne, nous ajustons gratuitement jusqu'à ce que tout soit juste.",
   },
   report: {
     eyebrow: "Rapport mensuel",
@@ -451,7 +451,7 @@ const en: Teksten = {
     lede: "An AI receptionist that answers on Instagram, WhatsApp, Facebook and your website, with your prices, your treatments and in your tone. In Dutch, French and English.",
     ctaPrimary: "Get your free demo →",
     ctaSecondary: "Try the demo",
-    micro: ["Built with your own info", "No payment details needed", "Live within 10 working days, or your setup fee back"],
+    micro: ["Built with your own info", "No payment details needed", "Live within 4 working days, or your setup fee back"],
   },
   facts: {
     label: "Key facts",
@@ -485,9 +485,9 @@ const en: Teksten = {
       { h: "You approve", p: "You complete your intake, test with your team and we adjust until everything is right. We only go live once you approve." },
       { h: "Live", p: "On your Instagram, WhatsApp, Facebook and website. From then on, your receptionist answers day and night." },
     ],
-    guaranteeTitle: "Live within 10 working days, or your setup fee back.",
+    guaranteeTitle: "Live within 4 working days, or your setup fee back.",
     guaranteeText:
-      "The clock starts once we have your complete intake, your payment and access to your channels. WhatsApp is excluded, because Meta has to verify it first. And for the first 30 days after going live, we adjust free of charge until everything is right.",
+      "The clock starts once we have your complete intake, your payment and access to your channels. While we wait for your approval or answers, the clock pauses. WhatsApp is excluded, because Meta has to verify it first. And for the first 30 days after going live, we adjust free of charge until everything is right.",
   },
   report: {
     eyebrow: "Monthly report",

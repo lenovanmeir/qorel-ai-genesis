@@ -33,7 +33,7 @@ type Lead = { kliniek: string; stad: string | null; instagram: string | null; em
 
 // The ready-to-send DM after a used demo, in the demo's language, built on the value equation (offers skill):
 // dream outcome = every question answered even at 23:00; likelihood = they just saw it answer their own question,
-// plus the go-live guarantee; time = live within 10 working days, a 15-minute call; effort = we read their site,
+// plus the go-live guarantee; time = live within 4 working days, a 15-minute call; effort = we read their site,
 // they only approve. The only scarcity is real: the date their demo stops. Brand voice: calm, no exclamation marks.
 function opvolgDm(kliniek: string, vraag: string, taal: string, verloopt: string | null): string {
   const onderwerp = kort(vraag.replace(/\s+/g, " ").trim(), 60);
@@ -42,14 +42,14 @@ function opvolgDm(kliniek: string, vraag: string, taal: string, verloopt: string
   if (taal === "fr")
     return [
       `Bonjour, j'ai vu que vous avez testé la démo de ${kliniek} avec la question « ${onderwerp} ». C'est exactement ce que chaque patiente recevrait, même à 23h : une réponse immédiate avec vos propres informations.`,
-      `La mise en place ne vous demande pas de travail : nous lisons votre site, vous validez. En ligne en 10 jours ouvrables, sinon les frais de démarrage vous sont remboursés.`,
+      `La mise en place ne vous demande pas de travail : nous lisons votre site, vous validez. En ligne en 4 jours ouvrables, sinon les frais de démarrage vous sont remboursés.`,
       `On regarde ensemble en 15 minutes ce que ça donnerait pour ${kliniek} ? Choisissez un moment : ${AGENDA}` +
         (verloopt ? `\nVotre démo reste active jusqu'au ${datum("fr-BE")}.` : ""),
       "Leno",
     ].join("\n\n");
   return [
     `Hoi, ik zag dat jullie de demo van ${kliniek} testten met de vraag "${onderwerp}". Zo zou elke klant het krijgen, ook om 23u: meteen een antwoord, met jullie eigen info.`,
-    `Live zetten kost jullie geen werk: wij lezen de website in, jullie keuren alleen goed. Live binnen 10 werkdagen, anders krijgen jullie de opstart terug.`,
+    `Live zetten kost jullie geen werk: wij lezen de website in, jullie keuren alleen goed. Live binnen 4 werkdagen, anders krijgen jullie de opstart terug.`,
     `Zullen we in 15 minuten bekijken hoe dat er voor ${kliniek} uitziet? Kies een moment: ${AGENDA}` +
       (verloopt ? `\nJullie demo loopt nog tot ${datum("nl-BE")}.` : ""),
     "Leno",
