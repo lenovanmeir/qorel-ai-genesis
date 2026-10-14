@@ -23,12 +23,13 @@ export const Route = createFileRoute("/dashboard")({
   component: Dashboard,
 });
 
-type Tab = "vandaag" | "morgen" | "week" | "leads" | "demos" | "verbruik" | "klanten" | "betalingen";
+type Tab = "vandaag" | "morgen" | "week" | "funnel" | "leads" | "demos" | "verbruik" | "klanten" | "betalingen";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "vandaag", label: "Vandaag" },
   { id: "morgen", label: "Morgen" },
   { id: "week", label: "Deze week" },
+  { id: "funnel", label: "Funnel" },
   { id: "leads", label: "Leads" },
   { id: "demos", label: "Demo's" },
   { id: "klanten", label: "Klanten" },
@@ -142,6 +143,7 @@ function Dashboard() {
             {tab === "vandaag" && <LiveVandaag dag="vandaag" />}
             {tab === "morgen" && <LiveVandaag dag="morgen" />}
             {tab === "week" && <Week />}
+            {tab === "funnel" && <Funnel />}
             {tab === "leads" && <Leads open={setFiche} />}
             {tab === "demos" && <Demos />}
             {tab === "klanten" && <Klanten />}
@@ -1441,6 +1443,148 @@ function Verbruik() {
                 </small>
               </span>
               <em className="dash-pill">{dollar(k.usd)}</em>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}
+
+type FunnelRij = { fase: string; rang: number | null; bereikt: number; nu: number };
+type HeteLead = { sheet_rij: number | null; kliniek: string; stad: string | null; instagram: string | null; email: string | null; status: string; fase: string; fase_sinds: string };
+
+const FASE_NAAM: Record<string, string> = {
+  NEW: "Nieuw",
+  QUALIFIED: "Klaar om te sturen",
+  WARMING: "Opwarmen",
+  CONTACTED: "Gecontacteerd",
+  FOLLOW_UP: "Opgevolgd",
+  REPLIED: "Geantwoord",
+  DEMO_READY: "Demo klaar",
+  DEMO_SENT: "Demo verstuurd",
+  DEMO_USED: "Demo gebruikt",
+  MEETING_BOOKED: "Gesprek geboekt",
+  MEETING_HELD: "Gesprek gehad",
+  WON: "Klant",
+  LOST: "Verloren",
+  NURTURE: "Later opnieuw",
+  DISQUALIFIED: "Niet geschikt",
+};
+
+// What Leno does next with a clinic in this stage.
+const FASE_ACTIE: Record<string, string> = {
+  REPLIED: "Antwoord geven",
+  DEMO_USED: "Nu persoonlijk opvolgen",
+  MEETING_BOOKED: "Gesprek voorbereiden",
+  MEETING_HELD: "Voorstel of factuur sturen",
+};
+
+const procent = (deel: number, geheel: number) => (geheel ? `${Math.round((deel / geheel) * 100)}%` : "–");
+const sinds = (iso: string) => {
+  const dagen = Math.floor((Date.now() - Date.parse(iso)) / 864e5);
+  return dagen <= 0 ? "vandaag" : dagen === 1 ? "gisteren" : `${dagen} dagen geleden`;
+};
+
+// Where clinics drop off, from first contact to client. Read from the database view lead_funnel:
+// "bereikt" counts every clinic that ever got this far, so a lost clinic still counts for how far it came.
+function Funnel() {
+  const [sleutel] = useState(leesSleutel);
+  const [data, setData] = useState<{ funnel: FunnelRij[]; heet: HeteLead[] } | null>(null);
+  const [fout, setFout] = useState("");
+
+  useEffect(() => {
+    if (!sleutel) return;
+    void (async () => {
+      try {
+        const antwoord = await haalLijst(sleutel);
+        if (!antwoord.ok) throw new Error();
+        const d = (await antwoord.json()) as { funnel?: FunnelRij[]; heet?: HeteLead[] };
+        if (!d.funnel?.length) throw new Error();
+        setData({ funnel: d.funnel, heet: d.heet ?? [] });
+      } catch {
+        setFout("De funnel kon niet geladen worden. Probeer het zo opnieuw.");
+      }
+    })();
+  }, [sleutel]);
+
+  if (!sleutel) {
+    return (
+      <section className="dash-section">
+        <p className="dash-note">Open eerst Vandaag en vul daar je beheercode in.</p>
+      </section>
+    );
+  }
+  if (!data) {
+    return (
+      <section className="dash-section">
+        <p className="dash-note">{fout || "Funnel laden…"}</p>
+      </section>
+    );
+  }
+
+  const n = (fase: string) => data.funnel.find((f) => f.fase === fase)?.bereikt ?? 0;
+  // The steps that matter for sales; warm-up and qualification stay out of the conversion figures.
+  const stappen = ["CONTACTED", "REPLIED", "DEMO_SENT", "DEMO_USED", "MEETING_BOOKED", "MEETING_HELD", "WON"];
+  const hoogste = Math.max(1, n("CONTACTED"));
+  const uitgang = data.funnel.filter((f) => f.rang === null);
+
+  return (
+    <section className="dash-section">
+      <Cijfers
+        items={[
+          ["Antwoordratio", procent(n("REPLIED"), n("CONTACTED")), `${n("REPLIED")} van ${n("CONTACTED")} gecontacteerd`],
+          ["Demo → gesprek", procent(n("MEETING_BOOKED"), n("DEMO_SENT")), `${n("MEETING_BOOKED")} van ${n("DEMO_SENT")} demo's`],
+          ["Gesprek → klant", procent(n("WON"), n("MEETING_HELD")), `${n("WON")} van ${n("MEETING_HELD")} gesprekken`],
+        ]}
+      />
+      <div className="dash-card">
+        <h2>Nu persoonlijk opvolgen</h2>
+        {data.heet.length === 0 && <p className="dash-note">Niemand wacht op jou. Klinieken die antwoorden, hun demo gebruiken of een gesprek boeken, verschijnen hier.</p>}
+        <ul className="dash-list plain">
+          {data.heet.map((l) => (
+            <li key={`${l.kliniek}-${l.fase_sinds}`}>
+              <span>
+                <b>{l.kliniek}</b>
+                <small>
+                  {[l.stad, l.instagram || l.email, `${FASE_NAAM[l.fase] ?? l.fase} ${sinds(l.fase_sinds)}`].filter(Boolean).join(" · ")}
+                </small>
+              </span>
+              <em className={`dash-pill ${l.fase === "DEMO_USED" || l.fase === "MEETING_BOOKED" ? "accent" : "warn"}`}>{FASE_ACTIE[l.fase] ?? ""}</em>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <div className="dash-card">
+        <h2>Van contact tot klant</h2>
+        <p className="dash-note">Hoeveel klinieken elke stap echt hebben gehad, en welk deel van alle gecontacteerde klinieken dat is.</p>
+        <ul className="dash-list plain">
+          {stappen.map((fase, i) => {
+            const aantal = n(fase);
+            return (
+              <li key={fase} style={{ backgroundImage: `linear-gradient(90deg, rgba(99, 102, 255, 0.18) ${(aantal / hoogste) * 100}%, transparent 0)` }}>
+                <span>
+                  <b>{FASE_NAAM[fase]}</b>
+                  <small>{data.funnel.find((f) => f.fase === fase)?.nu ?? 0} staan hier nu</small>
+                </span>
+                <em className="dash-pill">
+                  {aantal}
+                  {i > 0 && ` · ${procent(aantal, n("CONTACTED"))}`}
+                </em>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+      <div className="dash-card">
+        <h2>Uit de funnel</h2>
+        <ul className="dash-list plain">
+          {uitgang.map((f) => (
+            <li key={f.fase}>
+              <span>
+                <b>{FASE_NAAM[f.fase] ?? f.fase}</b>
+              </span>
+              <em className="dash-pill">{f.nu}</em>
             </li>
           ))}
         </ul>

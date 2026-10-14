@@ -30,6 +30,7 @@ type Lead = {
   opvolging_1: string | null;
   opvolging_2: string | null;
   vraagknop: string | null;
+  fase: string;
 };
 
 function cors(origin: string | null): Record<string, string> {
@@ -90,10 +91,13 @@ function bouwLijst(leads: Lead[]) {
   const knopStapOpen = (aa: string) => !aa.trim() || aa.startsWith("Heeft vraagknoppen") || (aa.includes("Getikt") && !aa.includes("->"));
   // Clinics with a demo or an answer are handled in the Demo's tab / by Leno, never in the daily blocks.
   const BUITEN_DAGLIJST = new Set(["Demo klaar", "Demo verstuurd", "Geantwoord"]);
+  // Stages the sheet does not know about (demo used, call booked or held, client, later): the sheet status may
+  // still say "DM verstuurd", but these clinics must never get a cold follow-up.
+  const FASE_BUITEN_DAGLIJST = new Set(["DEMO_USED", "MEETING_BOOKED", "MEETING_HELD", "WON", "NURTURE"]);
 
   for (const l of leads) {
     const status = l.status;
-    if (BUITEN_DAGLIJST.has(status)) continue;
+    if (BUITEN_DAGLIJST.has(status) || FASE_BUITEN_DAGLIJST.has(l.fase)) continue;
     const datum = isoWaarde(l.opvolgen_op);
     const aa = l.vraagknop ?? "";
     const opwarmen = l.opwarmen ?? "";
@@ -218,20 +222,25 @@ Deno.serve(async (req) => {
 
   try {
     const kolommen =
-      "sheet_rij,kliniek,stad,instagram,email,contact_via,status,opvolgen_op,bericht,volgende_stap,versie,opwarmen,reactie_opwarmen,opvolging_1,opvolging_2,vraagknop";
+      "sheet_rij,kliniek,stad,instagram,email,contact_via,status,opvolgen_op,bericht,volgende_stap,versie,opwarmen,reactie_opwarmen,opvolging_1,opvolging_2,vraagknop,fase";
     const maandStart = new Date();
     maandStart.setUTCDate(1);
     maandStart.setUTCHours(0, 0, 0, 0);
-    const [leads, demos, verbruik] = await Promise.all([
+    const [leads, demos, verbruik, funnel, heet] = await Promise.all([
       lees(`leads?select=${kolommen}&order=sheet_rij.asc`),
       // Demos and usage are extra: if one of these reads fails the lists still load.
       lees("demo_aanvragen?select=*&status=neq.nieuw&order=created_at.desc&limit=60").catch(() => []),
       lees(`ai_verbruik?select=onderdeel,kost_usd,input_tokens,output_tokens,clinics(name)&op=gte.${maandStart.toISOString()}&limit=50000`).catch(() => []),
+      lees("lead_funnel?select=fase,rang,bereikt,nu").catch(() => []),
+      // Clinics that need Leno personally now: they answered, used their demo or booked a call.
+      lees("leads?select=sheet_rij,kliniek,stad,instagram,email,status,fase,fase_sinds&fase=in.(REPLIED,DEMO_USED,MEETING_BOOKED,MEETING_HELD)&order=fase_sinds.desc&limit=50").catch(() => []),
     ]);
     return json({
       ...bouwLijst(leads as Lead[]),
       demos: (demos as unknown[]).map(demoVorm),
       verbruik: verbruikDezeMaand(verbruik as VerbruikRij[], maandStart),
+      funnel,
+      heet,
       bron: "database",
     });
   } catch (e) {
