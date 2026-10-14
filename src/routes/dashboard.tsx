@@ -23,7 +23,7 @@ export const Route = createFileRoute("/dashboard")({
   component: Dashboard,
 });
 
-type Tab = "vandaag" | "morgen" | "week" | "leads" | "demos" | "klanten" | "betalingen";
+type Tab = "vandaag" | "morgen" | "week" | "leads" | "demos" | "verbruik" | "klanten" | "betalingen";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "vandaag", label: "Vandaag" },
@@ -32,6 +32,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "leads", label: "Leads" },
   { id: "demos", label: "Demo's" },
   { id: "klanten", label: "Klanten" },
+  { id: "verbruik", label: "Verbruik" },
   { id: "betalingen", label: "Betalingen" },
 ];
 
@@ -144,6 +145,7 @@ function Dashboard() {
             {tab === "leads" && <Leads open={setFiche} />}
             {tab === "demos" && <Demos />}
             {tab === "klanten" && <Klanten />}
+            {tab === "verbruik" && <Verbruik />}
             {tab === "betalingen" && <Betalingen />}
           </>
         )}
@@ -1341,6 +1343,107 @@ function Klanten() {
           Meest gevraagd deze maand: prijs botox, laserontharing, parkeren. Buiten de openingsuren:
           38% van de gesprekken.
         </p>
+      </div>
+    </section>
+  );
+}
+
+type VerbruikOverzicht = {
+  vanaf: string;
+  totaal_usd: number;
+  oproepen: number;
+  per_onderdeel: { onderdeel: string; oproepen: number; usd: number }[];
+  per_kliniek: { kliniek: string; oproepen: number; usd: number; onderdelen: string[] }[];
+};
+
+const ONDERDEEL_NAAM: Record<string, string> = {
+  chatbot: "Chatbot van klanten",
+  demo: "Demo's",
+  leads: "Leads zoeken",
+  teksten: "Berichten schrijven",
+  demo_controle: "Demo-controle",
+};
+
+const dollar = (n: number) => `$${n.toFixed(n < 1 ? 4 : 2)}`;
+
+// AI cost this month, per part and per clinic, logged by every AI step in n8n (table ai_verbruik).
+function Verbruik() {
+  const [sleutel] = useState(leesSleutel);
+  const [verbruik, setVerbruik] = useState<VerbruikOverzicht | null>(null);
+  const [fout, setFout] = useState("");
+
+  useEffect(() => {
+    if (!sleutel) return;
+    void (async () => {
+      try {
+        const antwoord = await haalLijst(sleutel);
+        if (!antwoord.ok) throw new Error();
+        const data = (await antwoord.json()) as { verbruik?: VerbruikOverzicht };
+        if (!data.verbruik) throw new Error();
+        setVerbruik(data.verbruik);
+      } catch {
+        setFout("Het verbruik kon niet geladen worden. Probeer het zo opnieuw.");
+      }
+    })();
+  }, [sleutel]);
+
+  if (!sleutel) {
+    return (
+      <section className="dash-section">
+        <p className="dash-note">Open eerst Vandaag en vul daar je beheercode in.</p>
+      </section>
+    );
+  }
+  if (!verbruik) {
+    return (
+      <section className="dash-section">
+        <p className="dash-note">{fout || "Verbruik laden…"}</p>
+      </section>
+    );
+  }
+
+  const maand = new Date(verbruik.vanaf).toLocaleDateString("nl-BE", { month: "long", year: "numeric" });
+  return (
+    <section className="dash-section">
+      <Cijfers
+        items={[
+          [`AI-kost ${maand}`, dollar(verbruik.totaal_usd), "geschat, op basis van de tokens"],
+          ["AI-oproepen", String(verbruik.oproepen), "elke vraag aan de AI telt als één"],
+          ["Klinieken", String(verbruik.per_kliniek.length), "met eigen verbruik deze maand"],
+        ]}
+      />
+      <div className="dash-card">
+        <h2>Per onderdeel</h2>
+        {verbruik.per_onderdeel.length === 0 && <p className="dash-note">Nog geen verbruik deze maand.</p>}
+        <ul className="dash-list plain">
+          {verbruik.per_onderdeel.map((o) => (
+            <li key={o.onderdeel}>
+              <span>
+                <b>{ONDERDEEL_NAAM[o.onderdeel] ?? o.onderdeel}</b>
+                <small>{o.oproepen} oproepen</small>
+              </span>
+              <em className="dash-pill">{dollar(o.usd)}</em>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <div className="dash-card">
+        <h2>Per kliniek</h2>
+        <p className="dash-note">Wat elke kliniek je deze maand aan AI kost: haar demo en, als ze klant is, haar chatbot.</p>
+        {verbruik.per_kliniek.length === 0 && <p className="dash-note">Nog geen kliniek met verbruik deze maand.</p>}
+        <ul className="dash-list plain">
+          {verbruik.per_kliniek.map((k) => (
+            <li key={k.kliniek}>
+              <span>
+                <b>{k.kliniek}</b>
+                <small>
+                  {k.oproepen} oproepen · {k.onderdelen.map((o) => ONDERDEEL_NAAM[o] ?? o).join(", ")}
+                </small>
+              </span>
+              <em className="dash-pill">{dollar(k.usd)}</em>
+            </li>
+          ))}
+        </ul>
       </div>
     </section>
   );

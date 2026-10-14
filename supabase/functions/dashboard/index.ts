@@ -157,6 +157,44 @@ function bouwLijst(leads: Lead[]) {
   };
 }
 
+type VerbruikRij = {
+  onderdeel: string;
+  kost_usd: string | number;
+  input_tokens: number;
+  output_tokens: number;
+  clinics: { name: string } | null;
+};
+
+// AI cost this month: total, per part (chatbot, demo, leads, texts) and per clinic, so Leno sees it on his own dashboard.
+function verbruikDezeMaand(rijen: VerbruikRij[], vanaf: Date) {
+  const perOnderdeel: Record<string, { oproepen: number; usd: number }> = {};
+  const perKliniek: Record<string, { oproepen: number; usd: number; onderdelen: string[] }> = {};
+  let totaal = 0;
+  for (const r of rijen) {
+    const usd = Number(r.kost_usd) || 0;
+    totaal += usd;
+    const o = (perOnderdeel[r.onderdeel] ??= { oproepen: 0, usd: 0 });
+    o.oproepen++;
+    o.usd += usd;
+    if (r.clinics?.name) {
+      const k = (perKliniek[r.clinics.name] ??= { oproepen: 0, usd: 0, onderdelen: [] });
+      k.oproepen++;
+      k.usd += usd;
+      if (!k.onderdelen.includes(r.onderdeel)) k.onderdelen.push(r.onderdeel);
+    }
+  }
+  const rond = (n: number) => Math.round(n * 10000) / 10000;
+  return {
+    vanaf: vanaf.toISOString().slice(0, 10),
+    totaal_usd: rond(totaal),
+    oproepen: rijen.length,
+    per_onderdeel: Object.entries(perOnderdeel).map(([onderdeel, v]) => ({ onderdeel, oproepen: v.oproepen, usd: rond(v.usd) })),
+    per_kliniek: Object.entries(perKliniek)
+      .map(([kliniek, v]) => ({ kliniek, oproepen: v.oproepen, usd: rond(v.usd), onderdelen: v.onderdelen }))
+      .sort((a, b) => b.usd - a.usd),
+  };
+}
+
 // deno-lint-ignore no-explicit-any
 function demoVorm(d: any) {
   return {
@@ -181,12 +219,21 @@ Deno.serve(async (req) => {
   try {
     const kolommen =
       "sheet_rij,kliniek,stad,instagram,email,contact_via,status,opvolgen_op,bericht,volgende_stap,versie,opwarmen,reactie_opwarmen,opvolging_1,opvolging_2,vraagknop";
-    const [leads, demos] = await Promise.all([
+    const maandStart = new Date();
+    maandStart.setUTCDate(1);
+    maandStart.setUTCHours(0, 0, 0, 0);
+    const [leads, demos, verbruik] = await Promise.all([
       lees(`leads?select=${kolommen}&order=sheet_rij.asc`),
-      // Demos are extra: if this read fails the lists still load, as in the n8n version.
+      // Demos and usage are extra: if one of these reads fails the lists still load.
       lees("demo_aanvragen?select=*&status=neq.nieuw&order=created_at.desc&limit=60").catch(() => []),
+      lees(`ai_verbruik?select=onderdeel,kost_usd,input_tokens,output_tokens,clinics(name)&op=gte.${maandStart.toISOString()}&limit=50000`).catch(() => []),
     ]);
-    return json({ ...bouwLijst(leads as Lead[]), demos: (demos as unknown[]).map(demoVorm), bron: "database" });
+    return json({
+      ...bouwLijst(leads as Lead[]),
+      demos: (demos as unknown[]).map(demoVorm),
+      verbruik: verbruikDezeMaand(verbruik as VerbruikRij[], maandStart),
+      bron: "database",
+    });
   } catch (e) {
     console.error(e);
     return json({ fout: "De lijst kon niet geladen worden" }, 500);
