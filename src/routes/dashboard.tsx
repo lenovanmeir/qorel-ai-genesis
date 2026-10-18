@@ -37,68 +37,26 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "betalingen", label: "Betalingen" },
 ];
 
+// One clinic in the Leads tab, as the Edge Function "dashboard" returns it.
 type Fiche = {
-  naam: string;
+  id: string;
+  rij: number | null;
+  kliniek: string;
   stad: string;
-  kans: number;
+  instagram: string;
+  website: string;
+  email: string;
+  kanaal: string;
+  kans: number | null;
   waarom: string;
   status: string;
-  instagram: string;
-  volgers: string;
-  laatstePost: string;
-  bio: string;
-  vragen: string[];
-  demoVragen: string[];
-  gesprek?: string;
+  fase: string;
+  datum: string | null;
+  bericht: string;
+  notities: string;
+  bron: string;
+  toegevoegd: string;
 };
-
-// Sample data for the preview; the live version fills this from the sheet and Supabase.
-const FICHES: Fiche[] = [
-  {
-    naam: "Kliniek Aurora",
-    stad: "Antwerpen",
-    kans: 94,
-    waarom: "12 onbeantwoorde prijsvragen in comments, geen online boeking, post NL en FR",
-    status: "Gesprek gepland",
-    instagram: "@kliniek.aurora",
-    volgers: "8.400",
-    laatstePost: "gisteren",
-    bio: "Laser & skin · DM voor een afspraak",
-    vragen: ["“Prijs voor full legs?”", "“Doen jullie ook mannen?”", "“Info pls”"],
-    demoVragen: [
-      "Wat kost laserontharing?",
-      "Zijn jullie open op zaterdag?",
-      "Hoeveel sessies heb ik nodig?",
-    ],
-    gesprek: "vandaag 15:00 (jouw tijd 21:00)",
-  },
-  {
-    naam: "Huidstudio Noord",
-    stad: "Gent",
-    kans: 88,
-    waarom: "Antwoordde gisteren op je DM, vraagt naar prijzen",
-    status: "Geantwoord",
-    instagram: "@huidstudio.noord",
-    volgers: "3.100",
-    laatstePost: "3 dagen geleden",
-    bio: "Huidverbetering · boek via link in bio",
-    vragen: ["“Hoeveel kost microneedling?”"],
-    demoVragen: [],
-  },
-  {
-    naam: "Atelier Lumi",
-    stad: "Antwerpen",
-    kans: 81,
-    waarom: "Demo verstuurd 3 dagen geleden, nog geen vraag gesteld",
-    status: "Demo verstuurd",
-    instagram: "@atelier.lumi",
-    volgers: "5.900",
-    laatstePost: "vandaag",
-    bio: "Injectables & skin · Antwerpen",
-    vragen: ["“Is er nog plaats deze week?”", "“Prijs botox?”"],
-    demoVragen: [],
-  },
-];
 
 function Dashboard() {
   const [tab, setTab] = useState<Tab>("vandaag");
@@ -116,7 +74,7 @@ function Dashboard() {
               QORE<small>DASHBOARD</small>
             </span>
           </span>
-          <span className="dash-badge">Vandaag, morgen &amp; demo's: live · rest: voorbeeld</span>
+          <span className="dash-badge">Live · Deze week, Klanten en Betalingen: voorbeeld</span>
         </nav>
 
         <div className="dash-tabs" role="tablist" aria-label="Onderdelen">
@@ -170,26 +128,27 @@ function Cijfers({ items }: { items: [string, string, string?][] }) {
   );
 }
 
-// Live list for today, read from the Leads tab by n8n workflow "Dashboard vandaag (Leads)".
-const VANDAAG_URL = "https://qorelabs.app.n8n.cloud/webhook/qa-dashboard-vandaag";
-// Same lists straight from the database (Supabase Edge Function "dashboard"): faster and no n8n run per load.
+// Since 18/10 the database is the only source of the leads: the Supabase Edge Function "dashboard" serves the
+// lists (GET) and saves the buttons (POST). The Google Sheet is only a nightly copy, so there is no n8n fallback.
 const LIJST_URL = "https://gqigmmezcmtwusgbdxny.supabase.co/functions/v1/dashboard";
 
-// Reads the list from the database; only if that fails for another reason than a wrong code, n8n answers instead.
-async function haalLijst(code: string): Promise<Response> {
-  try {
-    const antwoord = await fetch(LIJST_URL, { headers: { "x-beheercode": code } });
-    if (antwoord.ok || antwoord.status === 403) return antwoord;
-  } catch {
-    // Network or function trouble: fall back to n8n below.
-  }
-  return fetch(`${VANDAAG_URL}?sleutel=${encodeURIComponent(code)}`);
+function haalLijst(code: string): Promise<Response> {
+  return fetch(LIJST_URL, { headers: { "x-beheercode": code } });
 }
-const ACTIE_URL = "https://qorelabs.app.n8n.cloud/webhook/qa-dashboard-actie";
+
+function bewaar(code: string, body: unknown): Promise<Response> {
+  return fetch(LIJST_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-beheercode": code },
+    body: JSON.stringify(body),
+  });
+}
 const SLEUTEL_OPSLAG = "qore-beheercode";
 
 type Taak = {
-  rij: number;
+  id: string;
+  // Row in the old sheet; empty for leads added since 18/10.
+  rij: number | null;
   naam: string;
   stad: string;
   instagram: string;
@@ -231,7 +190,8 @@ type Actie =
   | "naar_morgen";
 
 // Leno first marks everything, then sends one block at once: one n8n run instead of one per click.
-type Keuze = { rij: number; actie: Actie; tijd: string };
+type Keuze = { id: string; actie: Actie; tijd: string };
+// Marks are kept per lead id. Marks saved before 18/10 were keyed on the sheet row and are dropped on load.
 const KEUZE_OPSLAG = "qore-keuzes";
 
 // Marks on the same row only conflict within a group (one status, one question-button step, one date move).
@@ -245,7 +205,13 @@ function groep(actie: Actie) {
 
 function leesKeuzes(): Record<string, Keuze> {
   try {
-    return JSON.parse(localStorage.getItem(KEUZE_OPSLAG) ?? "{}") as Record<string, Keuze>;
+    const bewaard = JSON.parse(localStorage.getItem(KEUZE_OPSLAG) ?? "{}") as Record<
+      string,
+      Partial<Keuze>
+    >;
+    return Object.fromEntries(
+      Object.entries(bewaard).filter(([, k]) => typeof k?.id === "string" && k.id.length === 36),
+    ) as Record<string, Keuze>;
   } catch {
     return {};
   }
@@ -271,7 +237,7 @@ function datumWaarde(s: string | undefined) {
 
 // Oldest date first, then sheet order: clinics that have waited longest come first.
 function oudsteEerst(a: Taak, b: Taak) {
-  return datumWaarde(a.datum) - datumWaarde(b.datum) || a.rij - b.rij;
+  return datumWaarde(a.datum) - datumWaarde(b.datum) || (a.rij ?? 1e9) - (b.rij ?? 1e9);
 }
 
 function leesSleutel() {
@@ -307,7 +273,7 @@ function LiveVandaag({ dag }: { dag: "vandaag" | "morgen" }) {
   const [laden, setLaden] = useState(false);
   const [bezig, setBezig] = useState(false);
   const [keuzes, setKeuzes] = useState<Record<string, Keuze>>({});
-  const [gekopieerd, setGekopieerd] = useState<number | null>(null);
+  const [gekopieerd, setGekopieerd] = useState<string | null>(null);
 
   async function ophalen(code: string) {
     setLaden(true);
@@ -361,50 +327,46 @@ function LiveVandaag({ dag }: { dag: "vandaag" | "morgen" }) {
     bewaarKeuzes(nieuw);
   }
 
-  function isGekozen(rij: number, actie: Actie) {
-    return keuzes[`${rij}:${groep(actie)}`]?.actie === actie;
+  function isGekozen(id: string, actie: Actie) {
+    return keuzes[`${id}:${groep(actie)}`]?.actie === actie;
   }
 
   // A first click marks the action, a second click on the same button undoes it.
   function kies(taak: Taak, actie: Actie) {
-    const sleutelKeuze = `${taak.rij}:${groep(actie)}`;
+    const sleutelKeuze = `${taak.id}:${groep(actie)}`;
     const nieuw = { ...keuzes };
     if (nieuw[sleutelKeuze]?.actie === actie) delete nieuw[sleutelKeuze];
     else {
-      nieuw[sleutelKeuze] = { rij: taak.rij, actie, tijd: new Date().toISOString() };
+      nieuw[sleutelKeuze] = { id: taak.id, actie, tijd: new Date().toISOString() };
       // "Geen keuzeknop" and "Getikt" contradict each other: the last tap wins.
-      if (actie === "vraagknop_geenknop" && nieuw[`${taak.rij}:knop`]?.actie === "vraagknop_getikt")
-        delete nieuw[`${taak.rij}:knop`];
-      if (actie === "vraagknop_getikt" && nieuw[`${taak.rij}:zien`]?.actie === "vraagknop_geenknop")
-        delete nieuw[`${taak.rij}:zien`];
+      if (actie === "vraagknop_geenknop" && nieuw[`${taak.id}:knop`]?.actie === "vraagknop_getikt")
+        delete nieuw[`${taak.id}:knop`];
+      if (actie === "vraagknop_getikt" && nieuw[`${taak.id}:zien`]?.actie === "vraagknop_geenknop")
+        delete nieuw[`${taak.id}:zien`];
     }
     zetKeuzes(nieuw);
   }
 
-  function keuzesVoor(rijen: number[]) {
-    return Object.entries(keuzes).filter(([, k]) => rijen.includes(k.rij));
+  function keuzesVoor(ids: string[]) {
+    return Object.entries(keuzes).filter(([, k]) => ids.includes(k.id));
   }
 
   // Sends all marks of one block in a single request.
-  async function verstuur(rijen: number[]) {
-    const lijstKeuzes = keuzesVoor(rijen);
+  async function verstuur(ids: string[]) {
+    const lijstKeuzes = keuzesVoor(ids);
     if (lijstKeuzes.length === 0) return;
     // A tap already proves the clinic has buttons, so "Keuzeknop" is not sent next to "Getikt"
     // (both write column AA and the tap time must stay).
     const getikt = new Set(
-      lijstKeuzes.filter(([, k]) => k.actie === "vraagknop_getikt").map(([, k]) => k.rij),
+      lijstKeuzes.filter(([, k]) => k.actie === "vraagknop_getikt").map(([, k]) => k.id),
     );
     const acties = lijstKeuzes
       .map(([, k]) => k)
-      .filter((k) => !(k.actie === "vraagknop_heeft" && getikt.has(k.rij)));
+      .filter((k) => !(k.actie === "vraagknop_heeft" && getikt.has(k.id)));
     setBezig(true);
     setFout("");
     try {
-      const antwoord = await fetch(ACTIE_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sleutel, acties }),
-      });
+      const antwoord = await bewaar(sleutel, { acties });
       if (!antwoord.ok) throw new Error();
       const nieuw = { ...keuzes };
       lijstKeuzes.forEach(([k]) => delete nieuw[k]);
@@ -423,8 +385,8 @@ function LiveVandaag({ dag }: { dag: "vandaag" | "morgen" }) {
     (lijst?.vraagknopWachten ?? [])
       .filter((t) => (t.minuten ?? 0) >= VRAAGKNOP_WACHTTIJD)
       .forEach((t) => {
-        nieuw[`${t.rij}:knop`] = {
-          rij: t.rij,
+        nieuw[`${t.id}:knop`] = {
+          id: t.id,
           actie: "vraagknop_geen",
           tijd: new Date().toISOString(),
         };
@@ -435,7 +397,7 @@ function LiveVandaag({ dag }: { dag: "vandaag" | "morgen" }) {
   async function kopieer(taak: Taak) {
     try {
       await navigator.clipboard.writeText(taak.bericht ?? "");
-      setGekopieerd(taak.rij);
+      setGekopieerd(taak.id);
       setTimeout(() => setGekopieerd(null), 2000);
     } catch {
       setFout("Kopiëren lukte niet. Selecteer de tekst en kopieer hem zelf.");
@@ -495,10 +457,10 @@ function LiveVandaag({ dag }: { dag: "vandaag" | "morgen" }) {
   );
 
   const tikRij = (t: Taak, metNaarMorgen: boolean) => (
-    <li key={`tik-${t.rij}`}>
+    <li key={`tik-${t.id}`}>
       <span>
         <b>
-          {t.naam} <small className="dash-rij">rij {t.rij}</small>
+          {t.naam} {t.rij ? <small className="dash-rij">rij {t.rij}</small> : null}
         </b>
         <small>
           {t.vraagknop?.startsWith("Heeft")
@@ -514,26 +476,26 @@ function LiveVandaag({ dag }: { dag: "vandaag" | "morgen" }) {
         )}
         {/* Always shown; already lit when the sheet says the clinic has buttons. */}
         <KeuzeKnop
-          gekozen={isGekozen(t.rij, "vraagknop_heeft") || Boolean(t.vraagknop?.startsWith("Heeft"))}
+          gekozen={isGekozen(t.id, "vraagknop_heeft") || Boolean(t.vraagknop?.startsWith("Heeft"))}
           onClick={() => kies(t, "vraagknop_heeft")}
         >
           Keuzeknop
         </KeuzeKnop>
         <KeuzeKnop
-          gekozen={isGekozen(t.rij, "vraagknop_geenknop")}
+          gekozen={isGekozen(t.id, "vraagknop_geenknop")}
           onClick={() => kies(t, "vraagknop_geenknop")}
         >
           Geen keuzeknop
         </KeuzeKnop>
         <KeuzeKnop
-          gekozen={isGekozen(t.rij, "vraagknop_getikt")}
+          gekozen={isGekozen(t.id, "vraagknop_getikt")}
           onClick={() => kies(t, "vraagknop_getikt")}
         >
           Getikt ✓
         </KeuzeKnop>
         {metNaarMorgen && (
           <KeuzeKnop
-            gekozen={isGekozen(t.rij, "naar_morgen")}
+            gekozen={isGekozen(t.id, "naar_morgen")}
             onClick={() => kies(t, "naar_morgen")}
           >
             Naar morgen
@@ -610,10 +572,10 @@ function LiveVandaag({ dag }: { dag: "vandaag" | "morgen" }) {
             {(lijst.vraagknopWachten ?? []).map((t) => {
               const klaar = (t.minuten ?? 0) >= VRAAGKNOP_WACHTTIJD;
               return (
-                <li key={`wacht-${t.rij}`}>
+                <li key={`wacht-${t.id}`}>
                   <span>
                     <b>
-                      {t.naam} <small className="dash-rij">rij {t.rij}</small>
+                      {t.naam} {t.rij ? <small className="dash-rij">rij {t.rij}</small> : null}
                     </b>
                     <small>
                       {klaar
@@ -624,14 +586,14 @@ function LiveVandaag({ dag }: { dag: "vandaag" | "morgen" }) {
                   <span className="dash-actions">
                     {klaar && (
                       <KeuzeKnop
-                        gekozen={isGekozen(t.rij, "vraagknop_geen")}
+                        gekozen={isGekozen(t.id, "vraagknop_geen")}
                         onClick={() => kies(t, "vraagknop_geen")}
                       >
                         Geen antwoord
                       </KeuzeKnop>
                     )}
                     <KeuzeKnop
-                      gekozen={isGekozen(t.rij, "vraagknop_wel")}
+                      gekozen={isGekozen(t.id, "vraagknop_wel")}
                       onClick={() => kies(t, "vraagknop_wel")}
                     >
                       Wel antwoord
@@ -643,11 +605,11 @@ function LiveVandaag({ dag }: { dag: "vandaag" | "morgen" }) {
           </ul>
           <Verstuurbalk
             aantal={
-              keuzesVoor([...tikNu, ...(lijst.vraagknopWachten ?? [])].map((t) => t.rij)).length
+              keuzesVoor([...tikNu, ...(lijst.vraagknopWachten ?? [])].map((t) => t.id)).length
             }
             bezig={bezig}
             onClick={() =>
-              void verstuur([...tikNu, ...(lijst.vraagknopWachten ?? [])].map((t) => t.rij))
+              void verstuur([...tikNu, ...(lijst.vraagknopWachten ?? [])].map((t) => t.id))
             }
           />
         </div>
@@ -673,10 +635,10 @@ function LiveVandaag({ dag }: { dag: "vandaag" | "morgen" }) {
         <ul className="dash-list">
           {deel.sturen.map((t) => (
             <TaakKaart
-              key={t.rij}
+              key={t.id}
               taak={t}
-              gekozen={(a) => isGekozen(t.rij, a)}
-              gekopieerd={gekopieerd === t.rij}
+              gekozen={(a) => isGekozen(t.id, a)}
+              gekopieerd={gekopieerd === t.id}
               kopieer={() => void kopieer(t)}
               acties={
                 morgen
@@ -692,9 +654,9 @@ function LiveVandaag({ dag }: { dag: "vandaag" | "morgen" }) {
         </ul>
         {!morgen && (
           <Verstuurbalk
-            aantal={keuzesVoor(deel.sturen.map((t) => t.rij)).length}
+            aantal={keuzesVoor(deel.sturen.map((t) => t.id)).length}
             bezig={bezig}
-            onClick={() => void verstuur(deel.sturen.map((t) => t.rij))}
+            onClick={() => void verstuur(deel.sturen.map((t) => t.id))}
           />
         )}
       </div>
@@ -705,10 +667,10 @@ function LiveVandaag({ dag }: { dag: "vandaag" | "morgen" }) {
           <ul className="dash-list">
             {deel.opvolgen.map((t) => (
               <TaakKaart
-                key={t.rij}
+                key={t.id}
                 taak={t}
-                gekozen={(a) => isGekozen(t.rij, a)}
-                gekopieerd={gekopieerd === t.rij}
+                gekozen={(a) => isGekozen(t.id, a)}
+                gekopieerd={gekopieerd === t.id}
                 kopieer={() => void kopieer(t)}
                 acties={
                   morgen
@@ -727,9 +689,9 @@ function LiveVandaag({ dag }: { dag: "vandaag" | "morgen" }) {
           </ul>
           {!morgen && (
             <Verstuurbalk
-              aantal={keuzesVoor(deel.opvolgen.map((t) => t.rij)).length}
+              aantal={keuzesVoor(deel.opvolgen.map((t) => t.id)).length}
               bezig={bezig}
-              onClick={() => void verstuur(deel.opvolgen.map((t) => t.rij))}
+              onClick={() => void verstuur(deel.opvolgen.map((t) => t.id))}
             />
           )}
         </div>
@@ -746,9 +708,9 @@ function LiveVandaag({ dag }: { dag: "vandaag" | "morgen" }) {
           </p>
           <ul className="dash-list plain">{opgewarmd.map((t) => tikRij(t, false))}</ul>
           <Verstuurbalk
-            aantal={keuzesVoor(opgewarmd.map((t) => t.rij)).length}
+            aantal={keuzesVoor(opgewarmd.map((t) => t.id)).length}
             bezig={bezig}
-            onClick={() => void verstuur(opgewarmd.map((t) => t.rij))}
+            onClick={() => void verstuur(opgewarmd.map((t) => t.id))}
           />
         </div>
       )}
@@ -759,10 +721,10 @@ function LiveVandaag({ dag }: { dag: "vandaag" | "morgen" }) {
           {deel.opwarmen.length === 0 && <p className="dash-note">Niets op te warmen.</p>}
           <ul className="dash-list plain">
             {deel.opwarmen.map((t) => (
-              <li key={t.rij}>
+              <li key={t.id}>
                 <span>
                   <b>
-                    {t.naam} <small className="dash-rij">rij {t.rij}</small>
+                    {t.naam} {t.rij ? <small className="dash-rij">rij {t.rij}</small> : null}
                   </b>
                   <small>Reactie: {t.reactie}</small>
                 </span>
@@ -776,10 +738,10 @@ function LiveVandaag({ dag }: { dag: "vandaag" | "morgen" }) {
             {lijst.nakijken.length === 0 && <p className="dash-note">Niets na te kijken.</p>}
             <ul className="dash-list plain">
               {lijst.nakijken.map((t) => (
-                <li key={t.rij}>
+                <li key={t.id}>
                   <span>
                     <b>
-                      {t.naam} <small className="dash-rij">rij {t.rij}</small>
+                      {t.naam} {t.rij ? <small className="dash-rij">rij {t.rij}</small> : null}
                     </b>
                     <small>{t.volgendeStap}</small>
                   </span>
@@ -864,7 +826,7 @@ function TaakKaart({
       <div className="dash-task-head">
         <span>
           <b>
-            {taak.naam} <small className="dash-rij">rij {taak.rij}</small>
+            {taak.naam} {taak.rij ? <small className="dash-rij">rij {taak.rij}</small> : null}
           </b>
           <small>{taak.volgendeStap}</small>
         </span>
@@ -947,10 +909,48 @@ function Week() {
 }
 
 function Leads({ open }: { open: (f: Fiche) => void }) {
+  const [sleutel] = useState(leesSleutel);
+  const [leads, setLeads] = useState<Fiche[] | null>(null);
+  const [fout, setFout] = useState("");
+  const [zoek, setZoek] = useState("");
+
+  useEffect(() => {
+    if (!sleutel) return;
+    haalLijst(sleutel)
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((d: { leads?: Fiche[] }) => setLeads(d.leads ?? []))
+      .catch(() => setFout("De leads konden niet geladen worden. Probeer het zo opnieuw."));
+  }, []);
+
+  if (!sleutel)
+    return <p className="dash-note">Open eerst de tab Vandaag en vul je beheercode in.</p>;
+  if (fout) return <p className="dash-note">{fout}</p>;
+  if (!leads) return <p className="dash-note">Leads laden…</p>;
+
+  const term = zoek.trim().toLowerCase();
+  const lijst = leads
+    .filter(
+      (l) =>
+        !term ||
+        [l.kliniek, l.stad, l.instagram, l.status, FASE_NAAM[l.fase] ?? l.fase]
+          .join(" ")
+          .toLowerCase()
+          .includes(term),
+    )
+    .sort((a, b) => (b.kans ?? -1) - (a.kans ?? -1));
   return (
     <section className="dash-section">
       <div className="dash-card">
-        <h2>Beste kansen</h2>
+        <div className="dash-card-head">
+          <h2>Alle leads ({lijst.length})</h2>
+          <input
+            className="dash-zoek"
+            type="search"
+            placeholder="Zoek op naam, stad, status…"
+            value={zoek}
+            onChange={(e) => setZoek(e.target.value)}
+          />
+        </div>
         <table className="dash-table">
           <thead>
             <tr>
@@ -961,14 +961,12 @@ function Leads({ open }: { open: (f: Fiche) => void }) {
             </tr>
           </thead>
           <tbody>
-            {FICHES.map((f) => (
-              <tr key={f.naam} onClick={() => open(f)}>
-                <td>{f.naam}</td>
-                <td>{f.stad}</td>
-                <td>
-                  <span className="dash-score">{f.kans}</span>
-                </td>
-                <td>{f.status}</td>
+            {lijst.map((l) => (
+              <tr key={l.id} onClick={() => open(l)}>
+                <td>{l.kliniek}</td>
+                <td>{l.stad}</td>
+                <td>{l.kans === null ? "–" : <span className="dash-score">{l.kans}</span>}</td>
+                <td>{l.status}</td>
               </tr>
             ))}
           </tbody>
@@ -979,7 +977,6 @@ function Leads({ open }: { open: (f: Fiche) => void }) {
 }
 
 // Live demos from Supabase demo_aanvragen, delivered in the same n8n answer as the list of today.
-const DEMO_ACTIE_URL = "https://qorelabs.app.n8n.cloud/webhook/qa-dashboard-demo-actie";
 
 type DemoVraag = { onderwerp: string; vraag: string; antwoord: string; goed: boolean };
 
@@ -1142,14 +1139,8 @@ function Demos() {
     setBezig(d.code);
     setFout("");
     try {
-      const antwoord = await fetch(DEMO_ACTIE_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sleutel,
-          code: d.code,
-          actie: d.dm_verstuurd_op ? "dm_niet_verstuurd" : "dm_verstuurd",
-        }),
+      const antwoord = await bewaar(sleutel, {
+        demo: { code: d.code, actie: d.dm_verstuurd_op ? "dm_niet_verstuurd" : "dm_verstuurd" },
       });
       if (!antwoord.ok) throw new Error();
       await ophalen();
@@ -1628,39 +1619,35 @@ function FicheView({ fiche, terug }: { fiche: Fiche; terug: () => void }) {
       <div className="dash-card">
         <div className="dash-card-head">
           <div>
-            <h2>{fiche.naam}</h2>
+            <h2>{fiche.kliniek}</h2>
             <p className="dash-sub">
-              {fiche.stad} · {fiche.instagram} · {fiche.volgers} volgers · laatste post{" "}
-              {fiche.laatstePost}
+              {[fiche.stad, fiche.instagram, fiche.website, fiche.email]
+                .filter(Boolean)
+                .join(" · ")}
             </p>
           </div>
-          <span className="dash-score big">{fiche.kans}</span>
+          {fiche.kans !== null && <span className="dash-score big">{fiche.kans}</span>}
         </div>
-        {fiche.gesprek && <p className="dash-call">Gesprek {fiche.gesprek}</p>}
+        <p className="dash-call">
+          {fiche.status} · {FASE_NAAM[fiche.fase] ?? fiche.fase}
+          {fiche.datum ? ` · opvolgen op ${new Date(fiche.datum).toLocaleDateString("nl-BE")}` : ""}
+        </p>
         <div className="dash-grid">
           <div>
             <h3>Waarom een goede kans</h3>
-            <p className="dash-note">{fiche.waarom}</p>
-            <h3>Bio</h3>
-            <p className="dash-note">{fiche.bio}</p>
+            <p className="dash-note">{fiche.waarom || "–"}</p>
+            <h3>Notities</h3>
+            <p className="dash-note">{fiche.notities || "–"}</p>
+            <p className="dash-note">
+              Bron: {fiche.bron || "–"} · kanaal: {fiche.kanaal || "–"}
+              {fiche.rij ? ` · sheetrij ${fiche.rij}` : ""}
+            </p>
           </div>
           <div>
-            <h3>Onbeantwoorde vragen op Instagram</h3>
-            <ul className="dash-bullets">
-              {fiche.vragen.map((v) => (
-                <li key={v}>{v}</li>
-              ))}
-            </ul>
-            <h3>Gevraagd in de demo</h3>
-            {fiche.demoVragen.length ? (
-              <ul className="dash-bullets">
-                {fiche.demoVragen.map((v) => (
-                  <li key={v}>{v}</li>
-                ))}
-              </ul>
-            ) : (
-              <p className="dash-note">Nog niets gevraagd.</p>
-            )}
+            <h3>Eerste bericht</h3>
+            <p className="dash-note" style={{ whiteSpace: "pre-wrap" }}>
+              {fiche.bericht || "Nog geen bericht."}
+            </p>
           </div>
         </div>
       </div>

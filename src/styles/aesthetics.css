@@ -288,6 +288,7 @@ html:has(.qa) {
 .qa .dash-btn:hover, .qa .dash-list .dash-btn:hover { border-color: var(--accent); }
 .qa .dash-btn.primary, .qa .dash-list .dash-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 .qa .dash-btn:disabled { opacity: 0.6; cursor: wait; }
+.qa .dash-zoek { flex: 0 1 260px; min-width: 0; background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px; color: var(--text); font: inherit; font-size: 0.88rem; }
 .qa .dash-key input { flex: 1 1 200px; min-width: 0; background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px; color: var(--text); font: inherit; }
 .qa .dash-error { margin: 0; color: var(--warm); font-size: 0.9rem; }
 @media (max-width: 560px) { .qa .dash-table { font-size: 0.82rem; } .qa .dash-table th, .qa .dash-table td { padding: 8px 6px; } .qa .dash-funnel-row { grid-template-columns: 100px minmax(0, 1fr) 32px; } }
