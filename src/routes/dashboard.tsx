@@ -1401,25 +1401,49 @@ function Klanten() {
   );
 }
 
+type VerbruikPost = { onderdeel: string; oproepen: number; usd: number };
+
 type VerbruikOverzicht = {
   vanaf: string;
   totaal_usd: number;
+  eigen_usd: number;
+  klanten_usd: number;
   oproepen: number;
-  per_onderdeel: { onderdeel: string; oproepen: number; usd: number }[];
-  per_kliniek: { kliniek: string; oproepen: number; usd: number; onderdelen: string[] }[];
+  eigen: VerbruikPost[];
+  per_klant: { kliniek: string; usd: number; oproepen: number; onderdelen: VerbruikPost[] }[];
 };
 
 const ONDERDEEL_NAAM: Record<string, string> = {
-  chatbot: "Chatbot van klanten",
-  demo: "Demo's",
   leads: "Leads zoeken",
   teksten: "Berichten schrijven",
+  website_inlezen: "Website inlezen (demo's bouwen)",
+  demo_test: "Demo's testen (jij en de controle)",
+  demo: "Demo-gesprekken van prospects",
+  chatbot: "Chatbot (gesprekken)",
+  vertalen: "Vertalen",
   demo_controle: "Demo-controle",
 };
 
 const dollar = (n: number) => `$${n.toFixed(n < 1 ? 4 : 2)}`;
 
-// AI cost this month, per part and per clinic, logged by every AI step in n8n (table ai_verbruik).
+function Posten({ posten }: { posten: VerbruikPost[] }) {
+  return (
+    <ul className="dash-list plain">
+      {posten.map((o) => (
+        <li key={o.onderdeel}>
+          <span>
+            <b>{ONDERDEEL_NAAM[o.onderdeel] ?? o.onderdeel}</b>
+            <small>{o.oproepen} oproepen</small>
+          </span>
+          <em className="dash-pill">{dollar(o.usd)}</em>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+// AI cost this month, logged by every AI step (table ai_verbruik): Leno's own costs per part, and per paying
+// client. A clinic counts as a client once clinics.is_klant is on; until then its costs (demo) are Leno's own.
 function Verbruik() {
   const [sleutel] = useState(leesSleutel);
   const [verbruik, setVerbruik] = useState<VerbruikOverzicht | null>(null);
@@ -1455,48 +1479,50 @@ function Verbruik() {
     );
   }
 
-  const maand = new Date(verbruik.vanaf).toLocaleDateString("nl-BE", { month: "long", year: "numeric" });
+  const maand = new Date(verbruik.vanaf).toLocaleDateString("nl-BE", {
+    month: "long",
+    year: "numeric",
+  });
   return (
     <section className="dash-section">
       <Cijfers
         items={[
-          [`AI-kost ${maand}`, dollar(verbruik.totaal_usd), "geschat, op basis van de tokens"],
-          ["AI-oproepen", String(verbruik.oproepen), "elke vraag aan de AI telt als één"],
-          ["Klinieken", String(verbruik.per_kliniek.length), "met eigen verbruik deze maand"],
+          [`AI-kost ${maand}`, dollar(verbruik.totaal_usd), `${verbruik.oproepen} oproepen`],
+          ["Jouw eigen kosten", dollar(verbruik.eigen_usd), "leads, teksten, demo's"],
+          [
+            "Kosten van klanten",
+            dollar(verbruik.klanten_usd),
+            `${verbruik.per_klant.length} klanten`,
+          ],
         ]}
       />
       <div className="dash-card">
-        <h2>Per onderdeel</h2>
-        {verbruik.per_onderdeel.length === 0 && <p className="dash-note">Nog geen verbruik deze maand.</p>}
-        <ul className="dash-list plain">
-          {verbruik.per_onderdeel.map((o) => (
-            <li key={o.onderdeel}>
-              <span>
-                <b>{ONDERDEEL_NAAM[o.onderdeel] ?? o.onderdeel}</b>
-                <small>{o.oproepen} oproepen</small>
-              </span>
-              <em className="dash-pill">{dollar(o.usd)}</em>
-            </li>
-          ))}
-        </ul>
+        <h2>Jouw eigen kosten</h2>
+        <p className="dash-note">
+          OpenAI rekent in dollar. Bedragen zijn berekend uit de tokens van elke oproep.
+        </p>
+        {verbruik.eigen.length === 0 ? (
+          <p className="dash-note">Nog geen eigen kosten deze maand.</p>
+        ) : (
+          <Posten posten={verbruik.eigen} />
+        )}
       </div>
       <div className="dash-card">
-        <h2>Per kliniek</h2>
-        <p className="dash-note">Wat elke kliniek je deze maand aan AI kost: haar demo en, als ze klant is, haar chatbot.</p>
-        {verbruik.per_kliniek.length === 0 && <p className="dash-note">Nog geen kliniek met verbruik deze maand.</p>}
-        <ul className="dash-list plain">
-          {verbruik.per_kliniek.map((k) => (
-            <li key={k.kliniek}>
-              <span>
-                <b>{k.kliniek}</b>
-                <small>
-                  {k.oproepen} oproepen · {k.onderdelen.map((o) => ONDERDEEL_NAAM[o] ?? o).join(", ")}
-                </small>
-              </span>
-              <em className="dash-pill">{dollar(k.usd)}</em>
-            </li>
-          ))}
-        </ul>
+        <h2>Per klant</h2>
+        {verbruik.per_klant.length === 0 && (
+          <p className="dash-note">
+            Nog geen betalende klant. Zodra een kliniek klant is, verschijnt hier wat haar chatbot per
+            kanaal kost.
+          </p>
+        )}
+        {verbruik.per_klant.map((k) => (
+          <div key={k.kliniek}>
+            <h3>
+              {k.kliniek} · {dollar(k.usd)}
+            </h3>
+            <Posten posten={k.onderdelen} />
+          </div>
+        ))}
       </div>
     </section>
   );

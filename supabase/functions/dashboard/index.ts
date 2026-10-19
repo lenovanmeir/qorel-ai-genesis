@@ -182,37 +182,46 @@ function bouwLijst(leads: Lead[]) {
 type VerbruikRij = {
   onderdeel: string;
   kost_usd: string | number;
-  input_tokens: number;
-  output_tokens: number;
-  clinics: { name: string } | null;
+  clinics: { name: string; is_klant: boolean } | null;
 };
 
-// AI cost this month: total, per part (chatbot, demo, leads, texts) and per clinic, so Leno sees it on his own dashboard.
+// AI cost this month, split the way Leno reads his month: his own costs per part (finding leads, writing texts,
+// building and testing demos, demo chats of prospects) and the costs of each paying client per part.
 function verbruikDezeMaand(rijen: VerbruikRij[], vanaf: Date) {
-  const perOnderdeel: Record<string, { oproepen: number; usd: number }> = {};
-  const perKliniek: Record<string, { oproepen: number; usd: number; onderdelen: string[] }> = {};
+  const rond = (n: number) => Math.round(n * 10000) / 10000;
+  const optellen = (lijst: Record<string, { oproepen: number; usd: number }>, sleutel: string, usd: number) => {
+    const o = (lijst[sleutel] ??= { oproepen: 0, usd: 0 });
+    o.oproepen++;
+    o.usd += usd;
+  };
+  const eigen: Record<string, { oproepen: number; usd: number }> = {};
+  const klanten: Record<string, { usd: number; oproepen: number; onderdelen: Record<string, { oproepen: number; usd: number }> }> = {};
   let totaal = 0;
+  let eigenTotaal = 0;
   for (const r of rijen) {
     const usd = Number(r.kost_usd) || 0;
     totaal += usd;
-    const o = (perOnderdeel[r.onderdeel] ??= { oproepen: 0, usd: 0 });
-    o.oproepen++;
-    o.usd += usd;
-    if (r.clinics?.name) {
-      const k = (perKliniek[r.clinics.name] ??= { oproepen: 0, usd: 0, onderdelen: [] });
-      k.oproepen++;
+    if (r.clinics?.is_klant) {
+      const k = (klanten[r.clinics.name] ??= { usd: 0, oproepen: 0, onderdelen: {} });
       k.usd += usd;
-      if (!k.onderdelen.includes(r.onderdeel)) k.onderdelen.push(r.onderdeel);
+      k.oproepen++;
+      optellen(k.onderdelen, r.onderdeel, usd);
+    } else {
+      eigenTotaal += usd;
+      optellen(eigen, r.onderdeel, usd);
     }
   }
-  const rond = (n: number) => Math.round(n * 10000) / 10000;
+  const lijst = (o: Record<string, { oproepen: number; usd: number }>) =>
+    Object.entries(o).map(([onderdeel, v]) => ({ onderdeel, oproepen: v.oproepen, usd: rond(v.usd) })).sort((a, b) => b.usd - a.usd);
   return {
     vanaf: vanaf.toISOString().slice(0, 10),
     totaal_usd: rond(totaal),
+    eigen_usd: rond(eigenTotaal),
+    klanten_usd: rond(totaal - eigenTotaal),
     oproepen: rijen.length,
-    per_onderdeel: Object.entries(perOnderdeel).map(([onderdeel, v]) => ({ onderdeel, oproepen: v.oproepen, usd: rond(v.usd) })),
-    per_kliniek: Object.entries(perKliniek)
-      .map(([kliniek, v]) => ({ kliniek, oproepen: v.oproepen, usd: rond(v.usd), onderdelen: v.onderdelen }))
+    eigen: lijst(eigen),
+    per_klant: Object.entries(klanten)
+      .map(([kliniek, v]) => ({ kliniek, usd: rond(v.usd), oproepen: v.oproepen, onderdelen: lijst(v.onderdelen) }))
       .sort((a, b) => b.usd - a.usd),
   };
 }
@@ -343,7 +352,7 @@ Deno.serve(async (req) => {
       leesAlles(`leads?select=${kolommen}&status=in.${dagStatussen}&order=sheet_rij.asc.nullslast,aangemaakt_op.asc`),
       // Demos and usage are extra: if one of these reads fails the lists still load.
       lees("demo_aanvragen?select=*&status=neq.nieuw&order=created_at.desc&limit=60").catch(() => []),
-      leesAlles(`ai_verbruik?select=onderdeel,kost_usd,input_tokens,output_tokens,clinics(name)&op=gte.${maandStart.toISOString()}`).catch(() => []),
+      leesAlles(`ai_verbruik?select=onderdeel,kost_usd,clinics(name,is_klant)&op=gte.${maandStart.toISOString()}`).catch(() => []),
       lees("lead_funnel?select=fase,rang,bereikt,nu").catch(() => []),
       // Clinics that need Leno personally now: they answered, used their demo or booked a call.
       lees("leads?select=id,sheet_rij,kliniek,stad,instagram,email,status,fase,fase_sinds&fase=in.(REPLIED,DEMO_USED,MEETING_BOOKED,MEETING_HELD)&order=fase_sinds.desc&limit=50").catch(() => []),
