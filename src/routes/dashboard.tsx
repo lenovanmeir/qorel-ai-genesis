@@ -37,26 +37,8 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "betalingen", label: "Betalingen" },
 ];
 
-// One clinic in the Leads tab, as the Edge Function "dashboard" returns it.
-type Fiche = {
-  id: string;
-  rij: number | null;
-  kliniek: string;
-  stad: string;
-  instagram: string;
-  website: string;
-  email: string;
-  kanaal: string;
-  kans: number | null;
-  waarom: string;
-  status: string;
-  fase: string;
-  datum: string | null;
-  bericht: string;
-  notities: string;
-  bron: string;
-  toegevoegd: string;
-};
+// The clinic Leno opens from the Leads tab; its details are fetched only then.
+type Fiche = { id: string; kliniek: string };
 
 function Dashboard() {
   const [tab, setTab] = useState<Tab>("vandaag");
@@ -132,8 +114,21 @@ function Cijfers({ items }: { items: [string, string, string?][] }) {
 // lists (GET) and saves the buttons (POST). The Google Sheet is only a nightly copy, so there is no n8n fallback.
 const LIJST_URL = "https://gqigmmezcmtwusgbdxny.supabase.co/functions/v1/dashboard";
 
-function haalLijst(code: string): Promise<Response> {
-  return fetch(LIJST_URL, { headers: { "x-beheercode": code } });
+// Every tab needs the same list, so it is fetched once and shared for a minute: switching tabs costs nothing.
+// After a button is saved (or "Vernieuwen") the list is fetched fresh.
+let lijstCache: { code: string; op: number; antwoord: Promise<Response> } | null = null;
+
+function haalLijst(code: string, vers = false): Promise<Response> {
+  if (vers || !lijstCache || lijstCache.code !== code || Date.now() - lijstCache.op > 60_000) {
+    const antwoord = fetch(LIJST_URL, { headers: { "x-beheercode": code } });
+    antwoord.catch(() => (lijstCache = null));
+    lijstCache = { code, op: Date.now(), antwoord };
+  }
+  return lijstCache.antwoord.then((a) => a.clone());
+}
+
+function haalExtra(code: string, vraag: Record<string, string>): Promise<Response> {
+  return fetch(`${LIJST_URL}?${new URLSearchParams(vraag).toString()}`, { headers: { "x-beheercode": code } });
 }
 
 function bewaar(code: string, body: unknown): Promise<Response> {
@@ -275,11 +270,11 @@ function LiveVandaag({ dag }: { dag: "vandaag" | "morgen" }) {
   const [keuzes, setKeuzes] = useState<Record<string, Keuze>>({});
   const [gekopieerd, setGekopieerd] = useState<string | null>(null);
 
-  async function ophalen(code: string) {
+  async function ophalen(code: string, vers = false) {
     setLaden(true);
     setFout("");
     try {
-      const antwoord = await haalLijst(code);
+      const antwoord = await haalLijst(code, vers);
       if (antwoord.status === 403) {
         setFout("Die beheercode klopt niet.");
         setSleutel("");
@@ -371,7 +366,7 @@ function LiveVandaag({ dag }: { dag: "vandaag" | "morgen" }) {
       const nieuw = { ...keuzes };
       lijstKeuzes.forEach(([k]) => delete nieuw[k]);
       zetKeuzes(nieuw);
-      await ophalen(sleutel);
+      await ophalen(sleutel, true);
     } catch {
       setFout("Versturen lukte niet. Je keuzes staan er nog; probeer het opnieuw.");
     } finally {
@@ -621,7 +616,7 @@ function LiveVandaag({ dag }: { dag: "vandaag" | "morgen" }) {
           <button
             type="button"
             className="dash-btn"
-            onClick={() => void ophalen(sleutel)}
+            onClick={() => void ophalen(sleutel, true)}
             disabled={laden}
           >
             {laden ? "Laden…" : "Vernieuwen"}
@@ -908,69 +903,134 @@ function Week() {
   );
 }
 
+type ZoekLead = {
+  id: string;
+  kliniek: string;
+  stad: string | null;
+  instagram: string | null;
+  kans: number | null;
+  status: string;
+  fase: string;
+};
+
+// Never every clinic at once: the clinics that need Leno now, the counts per stage, and a search that runs in
+// the database itself (at most 20 results), so the page stays light however many leads there are.
 function Leads({ open }: { open: (f: Fiche) => void }) {
   const [sleutel] = useState(leesSleutel);
-  const [leads, setLeads] = useState<Fiche[] | null>(null);
-  const [fout, setFout] = useState("");
+  const [heet, setHeet] = useState<HeteLead[] | null>(null);
+  const [funnel, setFunnel] = useState<FunnelRij[]>([]);
   const [zoek, setZoek] = useState("");
+  const [gevonden, setGevonden] = useState<ZoekLead[] | null>(null);
+  const [fout, setFout] = useState("");
 
   useEffect(() => {
     if (!sleutel) return;
     haalLijst(sleutel)
       .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((d: { leads?: Fiche[] }) => setLeads(d.leads ?? []))
+      .then((d: { heet?: HeteLead[]; funnel?: FunnelRij[] }) => {
+        setHeet(d.heet ?? []);
+        setFunnel(d.funnel ?? []);
+      })
       .catch(() => setFout("De leads konden niet geladen worden. Probeer het zo opnieuw."));
   }, []);
 
+  // Searches 300 ms after the last key, so typing a name costs one request, not one per letter.
+  useEffect(() => {
+    const term = zoek.trim();
+    if (term.length < 2) {
+      setGevonden(null);
+      return;
+    }
+    let actueel = true;
+    const timer = setTimeout(() => {
+      haalExtra(sleutel, { zoek: term })
+        .then((r) => (r.ok ? r.json() : Promise.reject()))
+        .then((d: { leads?: ZoekLead[] }) => actueel && setGevonden(d.leads ?? []))
+        .catch(() => actueel && setFout("Zoeken lukte niet. Probeer het zo opnieuw."));
+    }, 300);
+    return () => {
+      actueel = false;
+      clearTimeout(timer);
+    };
+  }, [zoek]);
+
   if (!sleutel)
     return <p className="dash-note">Open eerst de tab Vandaag en vul je beheercode in.</p>;
-  if (fout) return <p className="dash-note">{fout}</p>;
-  if (!leads) return <p className="dash-note">Leads laden…</p>;
 
-  const term = zoek.trim().toLowerCase();
-  const lijst = leads
-    .filter(
-      (l) =>
-        !term ||
-        [l.kliniek, l.stad, l.instagram, l.status, FASE_NAAM[l.fase] ?? l.fase]
-          .join(" ")
-          .toLowerCase()
-          .includes(term),
-    )
-    .sort((a, b) => (b.kans ?? -1) - (a.kans ?? -1));
   return (
     <section className="dash-section">
       <div className="dash-card">
         <div className="dash-card-head">
-          <h2>Alle leads ({lijst.length})</h2>
+          <h2>Leads</h2>
           <input
             className="dash-zoek"
             type="search"
-            placeholder="Zoek op naam, stad, status…"
+            placeholder="Zoek op naam, Instagram of stad…"
             value={zoek}
             onChange={(e) => setZoek(e.target.value)}
           />
         </div>
-        <table className="dash-table">
-          <thead>
-            <tr>
-              <th>Kliniek</th>
-              <th>Stad</th>
-              <th>Kans</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {lijst.map((l) => (
-              <tr key={l.id} onClick={() => open(l)}>
-                <td>{l.kliniek}</td>
-                <td>{l.stad}</td>
-                <td>{l.kans === null ? "–" : <span className="dash-score">{l.kans}</span>}</td>
-                <td>{l.status}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        {fout && <p className="dash-note">{fout}</p>}
+        {gevonden ? (
+          gevonden.length === 0 ? (
+            <p className="dash-note">Geen kliniek gevonden voor « {zoek.trim()} ».</p>
+          ) : (
+            <table className="dash-table">
+              <thead>
+                <tr>
+                  <th>Kliniek</th>
+                  <th>Stad</th>
+                  <th>Kans</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {gevonden.map((l) => (
+                  <tr key={l.id} onClick={() => open({ id: l.id, kliniek: l.kliniek })}>
+                    <td>{l.kliniek}</td>
+                    <td>{l.stad}</td>
+                    <td>{l.kans === null ? "–" : <span className="dash-score">{l.kans}</span>}</td>
+                    <td>{l.status}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )
+        ) : (
+          <>
+            <h3>Nu persoonlijk opvolgen</h3>
+            {!heet && !fout && <p className="dash-note">Laden…</p>}
+            {heet && heet.length === 0 && (
+              <p className="dash-note">Niemand wacht op jou. Zoek hierboven een kliniek op naam.</p>
+            )}
+            <ul className="dash-list">
+              {(heet ?? []).map((l) => (
+                <li key={l.id}>
+                  <button type="button" onClick={() => open({ id: l.id, kliniek: l.kliniek })}>
+                    <span>
+                      <b>{l.kliniek}</b>
+                      <small>
+                        {[l.stad, l.instagram || l.email, `${FASE_NAAM[l.fase] ?? l.fase} ${sinds(l.fase_sinds)}`]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </small>
+                    </span>
+                    <em className="dash-pill accent">{FASE_ACTIE[l.fase] ?? ""}</em>
+                  </button>
+                </li>
+              ))}
+            </ul>
+            {funnel.length > 0 && (
+              <p className="dash-note">
+                Nu:{" "}
+                {funnel
+                  .filter((f) => f.nu > 0)
+                  .map((f) => `${FASE_NAAM[f.fase] ?? f.fase} ${f.nu}`)
+                  .join(" · ")}
+              </p>
+            )}
+          </>
+        )}
       </div>
     </section>
   );
@@ -1105,12 +1165,12 @@ function Demos() {
   const [gekopieerd, setGekopieerd] = useState("");
   const [bezig, setBezig] = useState("");
 
-  async function ophalen() {
+  async function ophalen(vers = false) {
     if (!sleutel) return;
     setLaden(true);
     setFout("");
     try {
-      const antwoord = await haalLijst(sleutel);
+      const antwoord = await haalLijst(sleutel, vers);
       if (!antwoord.ok) throw new Error();
       const data = (await antwoord.json()) as { demos?: Demo[] };
       setDemos(data.demos ?? []);
@@ -1143,7 +1203,7 @@ function Demos() {
         demo: { code: d.code, actie: d.dm_verstuurd_op ? "dm_niet_verstuurd" : "dm_verstuurd" },
       });
       if (!antwoord.ok) throw new Error();
-      await ophalen();
+      await ophalen(true);
     } catch {
       setFout("Bewaren lukte niet. Probeer het opnieuw.");
     } finally {
@@ -1188,7 +1248,7 @@ function Demos() {
           <button
             type="button"
             className="dash-btn"
-            onClick={() => void ophalen()}
+            onClick={() => void ophalen(true)}
             disabled={laden}
           >
             {laden ? "Laden…" : "Vernieuwen"}
@@ -1443,7 +1503,7 @@ function Verbruik() {
 }
 
 type FunnelRij = { fase: string; rang: number | null; bereikt: number; nu: number };
-type HeteLead = { sheet_rij: number | null; kliniek: string; stad: string | null; instagram: string | null; email: string | null; status: string; fase: string; fase_sinds: string };
+type HeteLead = { id: string; sheet_rij: number | null; kliniek: string; stad: string | null; instagram: string | null; email: string | null; status: string; fase: string; fase_sinds: string };
 
 const FASE_NAAM: Record<string, string> = {
   NEW: "Nieuw",
@@ -1610,7 +1670,42 @@ function Betalingen() {
   );
 }
 
+type LeadDetail = {
+  lead: Record<string, string | number | null>;
+  gebeurtenissen: {
+    soort: string;
+    kanaal: string | null;
+    inhoud: string | null;
+    bron: string;
+    op: string;
+  }[];
+  demo: {
+    status: string;
+    token: string;
+    verstuurd_op: string | null;
+    berichten_gebruikt: number;
+    max_berichten: number;
+    verloopt_op: string | null;
+  } | null;
+};
+
 function FicheView({ fiche, terug }: { fiche: Fiche; terug: () => void }) {
+  const [sleutel] = useState(leesSleutel);
+  const [detail, setDetail] = useState<LeadDetail | null>(null);
+  const [fout, setFout] = useState("");
+
+  useEffect(() => {
+    haalExtra(sleutel, { id: fiche.id })
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((d: LeadDetail) => setDetail(d))
+      .catch(() => setFout("Deze kliniek kon niet geladen worden."));
+  }, [fiche.id]);
+
+  const l = detail?.lead ?? {};
+  const veld = (k: string) => (l[k] === null || l[k] === undefined ? "" : String(l[k]));
+  // Belgian dates, also when Leno opens the dashboard abroad.
+  const datum = (iso: string | null) =>
+    iso ? new Date(iso).toLocaleDateString("nl-BE", { timeZone: "Europe/Brussels" }) : "";
   return (
     <section className="dash-section">
       <button type="button" className="dash-back" onClick={terug}>
@@ -1621,35 +1716,60 @@ function FicheView({ fiche, terug }: { fiche: Fiche; terug: () => void }) {
           <div>
             <h2>{fiche.kliniek}</h2>
             <p className="dash-sub">
-              {[fiche.stad, fiche.instagram, fiche.website, fiche.email]
+              {[veld("stad"), veld("instagram"), veld("website"), veld("email"), veld("telefoon")]
                 .filter(Boolean)
                 .join(" · ")}
             </p>
           </div>
-          {fiche.kans !== null && <span className="dash-score big">{fiche.kans}</span>}
+          {veld("kans") && <span className="dash-score big">{veld("kans")}</span>}
         </div>
-        <p className="dash-call">
-          {fiche.status} · {FASE_NAAM[fiche.fase] ?? fiche.fase}
-          {fiche.datum ? ` · opvolgen op ${new Date(fiche.datum).toLocaleDateString("nl-BE")}` : ""}
-        </p>
-        <div className="dash-grid">
-          <div>
-            <h3>Waarom een goede kans</h3>
-            <p className="dash-note">{fiche.waarom || "–"}</p>
-            <h3>Notities</h3>
-            <p className="dash-note">{fiche.notities || "–"}</p>
-            <p className="dash-note">
-              Bron: {fiche.bron || "–"} · kanaal: {fiche.kanaal || "–"}
-              {fiche.rij ? ` · sheetrij ${fiche.rij}` : ""}
+        {fout && <p className="dash-note">{fout}</p>}
+        {!detail && !fout && <p className="dash-note">Laden…</p>}
+        {detail && (
+          <>
+            <p className="dash-call">
+              {veld("status")} · {FASE_NAAM[veld("fase")] ?? veld("fase")}
+              {veld("opvolgen_op") ? ` · opvolgen op ${datum(veld("opvolgen_op"))}` : ""}
             </p>
-          </div>
-          <div>
-            <h3>Eerste bericht</h3>
-            <p className="dash-note" style={{ whiteSpace: "pre-wrap" }}>
-              {fiche.bericht || "Nog geen bericht."}
-            </p>
-          </div>
-        </div>
+            <div className="dash-grid">
+              <div>
+                <h3>Waarom een goede kans</h3>
+                <p className="dash-note">{veld("waarom") || "–"}</p>
+                <h3>Notities</h3>
+                <p className="dash-note">{veld("notities") || "–"}</p>
+                {detail.demo && (
+                  <>
+                    <h3>Demo</h3>
+                    <p className="dash-note">
+                      {detail.demo.verstuurd_op ? "Link werkt" : "Nog niet verstuurd"} ·{" "}
+                      {detail.demo.berichten_gebruikt}/{detail.demo.max_berichten} berichten
+                      {detail.demo.verloopt_op ? ` · tot ${datum(detail.demo.verloopt_op)}` : ""}
+                    </p>
+                  </>
+                )}
+                <h3>Tijdlijn</h3>
+                {detail.gebeurtenissen.length === 0 ? (
+                  <p className="dash-note">Nog niets gebeurd.</p>
+                ) : (
+                  <ul className="dash-bullets">
+                    {detail.gebeurtenissen.map((g) => (
+                      <li key={`${g.op}-${g.soort}`}>
+                        {datum(g.op)} · {g.soort}
+                        {g.inhoud ? `: ${g.inhoud}` : ""}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              <div>
+                <h3>Eerste bericht</h3>
+                <p className="dash-note" style={{ whiteSpace: "pre-wrap" }}>
+                  {veld("bericht") || "Nog geen bericht."}
+                </p>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </section>
   );

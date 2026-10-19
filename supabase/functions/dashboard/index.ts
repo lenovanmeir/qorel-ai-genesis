@@ -63,6 +63,20 @@ async function lees(pad: string): Promise<unknown[]> {
   return (await antwoord.json()) as unknown[];
 }
 
+// Supabase returns at most 1000 rows per request, so lists that can grow are read in blocks of 1000.
+async function leesAlles(pad: string): Promise<unknown[]> {
+  const uit: unknown[] = [];
+  for (let van = 0; ; van += 1000) {
+    const antwoord = await fetch(`${SUPABASE_URL}/rest/v1/${pad}`, {
+      headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}`, "Range-Unit": "items", Range: `${van}-${van + 999}` },
+    });
+    if (!antwoord.ok) throw new Error(`${pad.split("?")[0]}: ${antwoord.status}`);
+    const blok = (await antwoord.json()) as unknown[];
+    uit.push(...blok);
+    if (blok.length < 1000) return uit;
+  }
+}
+
 const fmt = (d: Date) =>
   d.toLocaleDateString("nl-BE", { timeZone: "Europe/Brussels", day: "2-digit", month: "2-digit", year: "2-digit" });
 // "dd/mm/yy" (Brussels) -> UTC midnight, the same day key the n8n workflow used.
@@ -254,13 +268,27 @@ async function demoActie(demo: { code?: string; actie?: string }): Promise<void>
   });
 }
 
-// The Leads tab: every clinic; the page sorts and filters.
-// deno-lint-ignore no-explicit-any
-const leadVorm = (l: any) => ({
-  id: l.id, rij: l.sheet_rij, kliniek: l.kliniek, stad: l.stad ?? "", instagram: l.instagram ?? "", website: l.website ?? "",
-  email: l.email ?? "", kanaal: l.contact_via ?? "", kans: l.kans, waarom: l.waarom ?? "", status: l.status, fase: l.fase,
-  datum: l.opvolgen_op, bericht: l.bericht ?? "", notities: l.notities ?? "", bron: l.bron ?? "", toegevoegd: l.aangemaakt_op,
-});
+// The Leads tab never loads every clinic: it shows the clinics that need Leno (see "heet") and searches on demand.
+// Search: name, Instagram or city, at most 20 clinics, compact columns.
+async function zoekLeads(term: string): Promise<unknown[]> {
+  const t = term.replace(/[^\p{L}\p{N} .@_'&-]/gu, " ").replace(/\s+/g, " ").trim().slice(0, 60);
+  if (t.length < 2) return [];
+  const patroon = encodeURIComponent(`*${t}*`);
+  return await lees(
+    `leads?select=id,kliniek,stad,instagram,kans,status,fase&or=(kliniek.ilike.${patroon},instagram.ilike.${patroon},stad.ilike.${patroon})&order=kans.desc.nullslast&limit=20`,
+  );
+}
+
+// One clinic in full, only when Leno opens it: the lead, its last events and its demo.
+async function leadDetail(id: string) {
+  const [lead] = (await lees(`leads?select=*&id=eq.${id}`)) as Record<string, unknown>[];
+  if (!lead) return null;
+  const [gebeurtenissen, demos] = await Promise.all([
+    lees(`lead_gebeurtenissen?select=soort,kanaal,inhoud,bron,op&lead_id=eq.${id}&order=op.desc&limit=15`).catch(() => []),
+    lees(`demo_aanvragen?select=kliniek,status,token,verstuurd_op,dm_verstuurd_op,berichten_gebruikt,max_berichten,verloopt_op&lead_id=eq.${id}&order=created_at.desc&limit=1`).catch(() => []),
+  ]);
+  return { lead, gebeurtenissen, demo: (demos as unknown[])[0] ?? null };
+}
 
 Deno.serve(async (req) => {
   const headers = cors(req.headers.get("Origin"));
@@ -286,25 +314,42 @@ Deno.serve(async (req) => {
     }
   }
 
+  const url = new URL(req.url);
+  const zoek = url.searchParams.get("zoek");
+  const id = url.searchParams.get("id");
   try {
+    if (zoek !== null) return json({ leads: await zoekLeads(zoek) });
+    if (id !== null) {
+      if (!UUID.test(id)) return json({ fout: "Ongeldige lead" }, 400);
+      const detail = await leadDetail(id);
+      return detail ? json(detail) : json({ fout: "Lead niet gevonden" }, 404);
+    }
+  } catch (e) {
+    console.error(e);
+    return json({ fout: "Zoeken lukte niet" }, 500);
+  }
+
+  try {
+    // Only the statuses the daily blocks use, and only the columns they show: the list stays small however
+    // many leads there are.
     const kolommen =
-      "id,sheet_rij,kliniek,stad,instagram,website,email,contact_via,kans,waarom,status,opvolgen_op,bericht,notities,bron,volgende_stap,versie,opwarmen,reactie_opwarmen,opvolging_1,opvolging_2,vraagknop,fase,aangemaakt_op";
+      "id,sheet_rij,kliniek,stad,instagram,email,contact_via,status,opvolgen_op,bericht,volgende_stap,versie,opwarmen,reactie_opwarmen,opvolging_1,opvolging_2,vraagknop,fase";
+    const dagStatussen = encodeURIComponent('("Opwarmen","Klaar om te sturen","DM verstuurd","Opgevolgd 1","Nakijken")');
     const maandStart = new Date();
     maandStart.setUTCDate(1);
     maandStart.setUTCHours(0, 0, 0, 0);
     const [leads, demos, verbruik, funnel, heet] = await Promise.all([
       // Sheet order first (the old rows), then everything added since 18/10 in the order it came in.
-      lees(`leads?select=${kolommen}&order=sheet_rij.asc.nullslast,aangemaakt_op.asc`),
+      leesAlles(`leads?select=${kolommen}&status=in.${dagStatussen}&order=sheet_rij.asc.nullslast,aangemaakt_op.asc`),
       // Demos and usage are extra: if one of these reads fails the lists still load.
       lees("demo_aanvragen?select=*&status=neq.nieuw&order=created_at.desc&limit=60").catch(() => []),
-      lees(`ai_verbruik?select=onderdeel,kost_usd,input_tokens,output_tokens,clinics(name)&op=gte.${maandStart.toISOString()}&limit=50000`).catch(() => []),
+      leesAlles(`ai_verbruik?select=onderdeel,kost_usd,input_tokens,output_tokens,clinics(name)&op=gte.${maandStart.toISOString()}`).catch(() => []),
       lees("lead_funnel?select=fase,rang,bereikt,nu").catch(() => []),
       // Clinics that need Leno personally now: they answered, used their demo or booked a call.
       lees("leads?select=id,sheet_rij,kliniek,stad,instagram,email,status,fase,fase_sinds&fase=in.(REPLIED,DEMO_USED,MEETING_BOOKED,MEETING_HELD)&order=fase_sinds.desc&limit=50").catch(() => []),
     ]);
     return json({
       ...bouwLijst(leads as Lead[]),
-      leads: (leads as unknown[]).map(leadVorm),
       demos: (demos as unknown[]).map(demoVorm),
       verbruik: verbruikDezeMaand(verbruik as VerbruikRij[], maandStart),
       funnel,
