@@ -346,6 +346,8 @@ Deno.serve(async (req) => {
   }
 
   const url = new URL(req.url);
+  // ?check=1 only answers whether the beheercode is right. n8n uses it, so the code is checked in one place.
+  if (url.searchParams.has("check")) return json({ ok: true });
   const zoek = url.searchParams.get("zoek");
   const id = url.searchParams.get("id");
   try {

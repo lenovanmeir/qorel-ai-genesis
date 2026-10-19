@@ -278,7 +278,7 @@ function BeheerPagina() {
     setLaden(true);
     setFout(null);
     try {
-      const antwoord = await fetch(`${INTAKE_URL}?lijst=1&sleutel=${encodeURIComponent(code)}`);
+      const antwoord = await fetch(`${INTAKE_URL}?lijst=1&sleutel=${encodeURIComponent(code)}`, { headers: { "x-beheercode": code } });
       if (antwoord.status === 403) {
         setIngelogd(false);
         setFout("Die beheercode klopt niet.");
@@ -383,7 +383,7 @@ function BeheerPagina() {
     try {
       const antwoord = await fetch(OMZETTEN_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-beheercode": sleutel },
         body: JSON.stringify({ code: k.code, sleutel }),
       });
       if (!antwoord.ok) throw new Error(`status ${antwoord.status}`);
@@ -421,7 +421,7 @@ function BeheerPagina() {
       if (metAi) {
         const antwoord = await fetch(VOORBEREIDEN_URL, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", "x-beheercode": sleutel },
           body: JSON.stringify({ code, naam, website: nieuwWebsite.trim(), taal: nieuwTaal }),
         });
         if (!antwoord.ok) throw new Error(`status ${antwoord.status}`);
