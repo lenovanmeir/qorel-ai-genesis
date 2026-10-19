@@ -88,7 +88,32 @@ const dagWaarde = (s: string) => {
 const toonDatum = (iso: string | null) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(2, 4)}` : "");
 const isoWaarde = (iso: string | null) => (iso ? Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10)) : null);
 
-function bouwLijst(leads: Lead[]) {
+// A demo built in advance (P2) or on request, linked to a lead. Failed builds are ignored.
+type LeadDemo = {
+  lead_id: string;
+  status: string;
+  code: string | null;
+  token: string;
+  nakijk_token: string;
+  verstuurd_op: string | null;
+  dm_tekst: string | null;
+  dm_verstuurd_op: string | null;
+  taal: string;
+};
+
+const DEMO_MISLUKT = new Set(["mislukt", "geen_website"]);
+
+// The message Leno sends with an active demo: the DM written for it, with the real link filled in.
+// Without one, the same standard text as the Demo's tab.
+function demoTekst(d: LeadDemo): string {
+  const link = `https://qoreaesthetics.com/demo/${d.token}`;
+  if (d.dm_tekst) return d.dm_tekst.split("[DEMO-LINK]").join(link);
+  if (d.taal === "fr")
+    return `Bonjour ! 😊 Voici votre démo : ${link}\n\nTestez-la vous-même, comme une patiente qui pose une question. Elle connaît les soins et les tarifs de votre site. Si une info n'y figure pas, elle le dit honnêtement. La démo fonctionne 7 jours à partir de votre première question, pour 30 messages.\n\nDites-moi ce que vous en pensez !\nLeno`;
+  return `Dag! 😊 Hier is jullie demo: ${link}\n\nTest hem gerust zelf, alsof je een patiënt bent die een vraag stuurt. Hij kent de behandelingen en prijzen van jullie website. Staat iets er niet op, dan zegt hij dat eerlijk. De demo werkt 7 dagen vanaf jullie eerste vraag, voor 30 berichten.\n\nLaat me gerust weten wat jullie ervan vinden!\nLeno`;
+}
+
+function bouwLijst(leads: Lead[], demos: Map<string, LeadDemo>) {
   const vandaag = fmt(new Date());
   const morgen = fmt(new Date(Date.now() + 864e5));
   const vt = dagWaarde(vandaag)!;
@@ -131,13 +156,28 @@ function bouwLijst(leads: Lead[]) {
       volgendeStap: l.volgende_stap ?? "",
       versie: l.versie ?? "",
       vraagknop: aa.replace(/\s*\[[^\]]+\]/, ""),
+      // A demo for this clinic: until Leno reviewed and activated it, the card shows "Demo nakijken" instead of the
+      // message, so a link that does not work yet can never be copied.
+      demo: (() => {
+        const d = demos.get(l.id);
+        if (!d || DEMO_MISLUKT.has(d.status)) return null;
+        return {
+          status: d.status,
+          actief: !!d.verstuurd_op,
+          nakijk: d.code ? `https://qoreaesthetics.com/intake/${d.code}?nakijk=${d.nakijk_token}` : "",
+        };
+      })(),
     };
+    const actieveDemo = demos.get(l.id);
+    // The demo DM was already sent from the Demo's tab: the clinic follows the demo flow there, never twice here.
+    if (actieveDemo?.dm_verstuurd_op && !DEMO_MISLUKT.has(actieveDemo.status)) continue;
+    const sturenBericht = basis.demo?.actief && actieveDemo ? demoTekst(actieveDemo) : l.bericht;
     const klaar = ["Opwarmen", "Klaar om te sturen"].includes(status) && !!l.bericht;
     const instagram = l.contact_via === "Instagram-DM";
     // Mail clinics have no button step; Instagram DMs only once the button step is done.
     const magSturen = klaar && (!instagram || !knopStapOpen(aa));
-    if (magSturen && datum !== null && datum <= vt) nu.sturen.push({ ...basis, bericht: l.bericht });
-    if (magSturen && datum === mt) straks.sturen.push({ ...basis, bericht: l.bericht });
+    if (magSturen && datum !== null && datum <= vt) nu.sturen.push({ ...basis, bericht: sturenBericht });
+    if (magSturen && datum === mt) straks.sturen.push({ ...basis, bericht: sturenBericht });
     if (status === "Opwarmen" && opwarmen.startsWith(vandaag.slice(0, 5)))
       nu.opwarmen.push({ ...basis, uitleg: opwarmen, reactie: l.reactie_opwarmen ?? "" });
     if (status === "Opwarmen" && opwarmen.startsWith(morgen.slice(0, 5)))
@@ -258,11 +298,34 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 // POST {acties: [{id, actie, tijd}]}: all marks of one block in one request, one PATCH per lead.
 async function voerActiesUit(acties: Actie[]): Promise<number> {
   const ids = [...new Set((Array.isArray(acties) ? acties : []).map((a) => a?.id).filter((id) => typeof id === "string" && UUID.test(id)))];
-  const rijen = ids.length
-    ? ((await lees(`leads?select=id,contact_via,bericht,vraagknop&id=in.(${ids.join(",")})`)) as LeadNu[])
-    : [];
+  const [rijen, demoRijen] = ids.length
+    ? await Promise.all([
+        lees(`leads?select=id,contact_via,bericht,vraagknop&id=in.(${ids.join(",")})`) as Promise<LeadNu[]>,
+        lees(`demo_aanvragen?select=id,lead_id,status,verstuurd_op,dm_verstuurd_op&lead_id=in.(${ids.join(",")})&order=created_at.asc`) as Promise<
+          { id: string; lead_id: string; status: string; verstuurd_op: string | null; dm_verstuurd_op: string | null }[]
+        >,
+      ])
+    : [[], []];
+  const demoVan = new Map(demoRijen.filter((d) => !DEMO_MISLUKT.has(d.status)).map((d) => [d.lead_id, d]));
+  const verstuurd = new Set(acties.filter((a) => a?.actie === "verstuurd").map((a) => a.id));
+  // A clinic with a demo Leno has not reviewed yet: its first DM would carry a link that does not work.
+  for (const id of verstuurd) {
+    const d = demoVan.get(id);
+    if (d && !d.verstuurd_op) throw new ActieFout("Er staat een demo klaar voor deze kliniek. Kijk hem eerst na en activeer hem.");
+  }
   const patches = vertaalActies(acties, new Map(rijen.map((r) => [r.id, r])));
-  for (const [id, patch] of patches) await schrijf(`leads?id=eq.${id}`, "PATCH", patch);
+  for (const [id, patch] of patches) {
+    // The DM with an active demo is the demo message: the clinic moves to the demo follow-up, not the cold one.
+    const d = demoVan.get(id);
+    if (verstuurd.has(id) && d?.verstuurd_op) {
+      patch.status = "Demo verstuurd";
+      patch.volgende_stap = "Demo verstuurd: volg op in de tab Demo's";
+    }
+    await schrijf(`leads?id=eq.${id}`, "PATCH", patch);
+    // Marking the demo's DM as sent also moves the lead to DEMO_SENT (database trigger).
+    if (verstuurd.has(id) && d?.verstuurd_op && !d.dm_verstuurd_op)
+      await schrijf(`demo_aanvragen?id=eq.${d.id}`, "PATCH", { dm_verstuurd_op: new Date().toISOString() });
+  }
   return acties.length;
 }
 
@@ -371,7 +434,7 @@ Deno.serve(async (req) => {
     const maandStart = new Date();
     maandStart.setUTCDate(1);
     maandStart.setUTCHours(0, 0, 0, 0);
-    const [leads, demos, verbruik, funnel, heet, vasteKosten] = await Promise.all([
+    const [leads, demos, verbruik, funnel, heet, vasteKosten, leadDemos] = await Promise.all([
       // Sheet order first (the old rows), then everything added since 18/10 in the order it came in.
       leesAlles(`leads?select=${kolommen}&status=in.${dagStatussen}&order=sheet_rij.asc.nullslast,aangemaakt_op.asc`),
       // Demos and usage are extra: if one of these reads fails the lists still load.
@@ -381,9 +444,12 @@ Deno.serve(async (req) => {
       // Clinics that need Leno personally now: they answered, used their demo or booked a call.
       lees("leads?select=id,sheet_rij,kliniek,stad,instagram,email,status,fase,fase_sinds&fase=in.(REPLIED,DEMO_USED,MEETING_BOOKED,MEETING_HELD)&order=fase_sinds.desc&limit=50").catch(() => []),
       lees("vaste_kosten?select=id,naam,categorie,bedrag,valuta,per,actief,notitie&order=id.asc").catch(() => []),
+      // Demos linked to a lead (oldest first, so the newest one per lead wins below).
+      leesAlles("demo_aanvragen?select=lead_id,status,code,token,nakijk_token,verstuurd_op,dm_tekst,dm_verstuurd_op,taal&lead_id=not.is.null&order=created_at.asc").catch(() => []),
     ]);
+    const demoPerLead = new Map((leadDemos as LeadDemo[]).map((d) => [d.lead_id, d]));
     return json({
-      ...bouwLijst(leads as Lead[]),
+      ...bouwLijst(leads as Lead[], demoPerLead),
       demos: (demos as unknown[]).map(demoVorm),
       verbruik: { ...verbruikDezeMaand(verbruik as VerbruikRij[], maandStart), vaste_kosten: vasteKosten },
       funnel,

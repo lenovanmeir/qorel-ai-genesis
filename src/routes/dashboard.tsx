@@ -159,6 +159,9 @@ type Taak = {
   stap?: number;
   vraagknop?: string;
   minuten?: number;
+  // A demo for this clinic (built in advance or on request). Until it is reviewed and active, the card shows
+  // "Demo nakijken" instead of the message, so a link that does not work yet can never be sent.
+  demo?: { status: string; actief: boolean; nakijk: string } | null;
 };
 
 type Lijst = {
@@ -816,6 +819,8 @@ function TaakKaart({
   kies: (a: Actie) => void;
 }) {
   const isMail = taak.kanaal === "E-mail";
+  if (taak.demo && !taak.demo.actief)
+    return <DemoNakijkenKaart taak={taak} acties={acties} gekozen={gekozen} kies={kies} />;
   return (
     <li className="dash-task">
       <div className="dash-task-head">
@@ -830,6 +835,7 @@ function TaakKaart({
         </em>
       </div>
       {taak.vraagknop && <p className="dash-note">Vraagknop: {taak.vraagknop}</p>}
+      {taak.demo?.actief && <p className="dash-note">Met demo: de link in dit bericht werkt.</p>}
       <p className="dash-msg">{taak.bericht}</p>
       <div className="dash-actions">
         {isMail ? (
@@ -860,6 +866,54 @@ function TaakKaart({
             {label}
           </KeuzeKnop>
         ))}
+      </div>
+    </li>
+  );
+}
+
+// A clinic whose demo is not reviewed yet: no message to copy and no "Verstuurd", only the way to the review page.
+// Moving it to tomorrow stays possible.
+function DemoNakijkenKaart({
+  taak,
+  acties,
+  gekozen,
+  kies,
+}: {
+  taak: Taak;
+  acties: [Actie, string][];
+  gekozen: (a: Actie) => boolean;
+  kies: (a: Actie) => void;
+}) {
+  const bouwen = taak.demo?.status === "nieuw" || taak.demo?.status === "bouwen";
+  return (
+    <li className="dash-task">
+      <div className="dash-task-head">
+        <span>
+          <b>
+            {taak.naam} {taak.rij ? <small className="dash-rij">rij {taak.rij}</small> : null}
+          </b>
+          <small>{taak.volgendeStap}</small>
+        </span>
+        <em className="dash-pill warn">{bouwen ? "Demo wordt gebouwd" : "Demo nakijken"}</em>
+      </div>
+      <p className="dash-note">
+        {bouwen
+          ? "De demo voor deze kliniek wordt nog gebouwd."
+          : "Er staat een demo klaar voor deze kliniek. Kijk hem na en klik op « Klaar – verstuur demo ». Daarna verschijnt hier het bericht met de werkende link."}
+      </p>
+      <div className="dash-actions">
+        {!bouwen && taak.demo?.nakijk && (
+          <a className="dash-btn primary" href={taak.demo.nakijk} target="_blank" rel="noreferrer">
+            Demo nakijken
+          </a>
+        )}
+        {acties
+          .filter(([actie]) => actie === "naar_morgen")
+          .map(([actie, label]) => (
+            <KeuzeKnop key={actie} gekozen={gekozen(actie)} onClick={() => kies(actie)}>
+              {label}
+            </KeuzeKnop>
+          ))}
       </div>
     </li>
   );
@@ -1139,8 +1193,9 @@ function demoLink(d: Demo) {
 
 // Claude writes a message per clinic in dm_tekst; without one the dashboard offers a standard text.
 function demoBericht(d: Demo) {
-  if (d.dm_tekst) return d.dm_tekst;
   const link = demoLink(d);
+  // Demos built in advance carry their DM with [DEMO-LINK]; the real link is filled in here.
+  if (d.dm_tekst) return d.dm_tekst.split("[DEMO-LINK]").join(link);
   if (d.taal === "fr")
     return `Bonjour ! 😊 Voici votre démo : ${link}\n\nTestez-la vous-même, comme une patiente qui pose une question. Elle connaît les soins et les tarifs de votre site. Si une info n'y figure pas, elle le dit honnêtement. La démo fonctionne 7 jours à partir de votre première question, pour 30 messages.\n\nDites-moi ce que vous en pensez !\nLeno`;
   if (d.taal === "en")
