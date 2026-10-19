@@ -5,7 +5,7 @@ import { TALEN, deFr, isTaal, type Taal } from "@/lib/intake-teksten";
 export const Route = createFileRoute("/beheer")({
   head: () => ({
     meta: [
-      { title: "QoreLabs beheer" },
+      { title: "Qore Aesthetics beheer" },
       { name: "description", content: "Overzicht van de klinieken en hun intake." },
       { name: "robots", content: "noindex, nofollow" },
     ],
@@ -455,7 +455,7 @@ function BeheerPagina() {
     return (
       <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-5 px-5 py-16">
         <div className="flex flex-col gap-2">
-          <span className="text-xs font-medium uppercase tracking-[0.2em] text-primary">QoreLabs beheer</span>
+          <span className="text-xs font-medium uppercase tracking-[0.2em] text-primary">Qore Aesthetics beheer</span>
           <h1 className="font-display text-2xl font-semibold text-foreground">Uw klinieken</h1>
           <p className="text-sm text-muted-foreground">
             Vul uw beheercode in. Die staat in n8n en blijft op dit apparaat bewaard, zodat u hem maar één keer hoeft te typen.
@@ -473,7 +473,7 @@ function BeheerPagina() {
             type="text"
             name="username"
             autoComplete="username"
-            value="QoreLabs beheer"
+            value="Qore Aesthetics beheer"
             readOnly
             hidden
           />
@@ -505,7 +505,7 @@ function BeheerPagina() {
     <main className="mx-auto min-h-screen max-w-4xl px-5 py-10">
       <header className="mb-7 flex flex-wrap items-end justify-between gap-3">
         <div className="flex flex-col gap-1.5">
-          <span className="text-xs font-medium uppercase tracking-[0.2em] text-primary">QoreLabs beheer</span>
+          <span className="text-xs font-medium uppercase tracking-[0.2em] text-primary">Qore Aesthetics beheer</span>
           <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">Uw klinieken</h1>
           <p className="text-sm text-muted-foreground">
             Hier maakt u een nieuwe kliniek aan, kijkt u het concept na en kopieert u de link met het bericht.
