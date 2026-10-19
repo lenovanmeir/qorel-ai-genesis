@@ -278,7 +278,7 @@ function BeheerPagina() {
     setLaden(true);
     setFout(null);
     try {
-      const antwoord = await fetch(`${INTAKE_URL}?lijst=1&sleutel=${encodeURIComponent(code)}`, { headers: { "x-beheercode": code } });
+      const antwoord = await fetch(`${INTAKE_URL}?lijst=1`, { headers: { "x-beheercode": code } });
       if (antwoord.status === 403) {
         setIngelogd(false);
         setFout("Die beheercode klopt niet.");
@@ -384,7 +384,7 @@ function BeheerPagina() {
       const antwoord = await fetch(OMZETTEN_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-beheercode": sleutel },
-        body: JSON.stringify({ code: k.code, sleutel }),
+        body: JSON.stringify({ code: k.code }),
       });
       if (!antwoord.ok) throw new Error(`status ${antwoord.status}`);
       // Bij een fout antwoordt n8n ook met status 200, maar dan zonder "ok": de chatbot is dan niet gewijzigd.

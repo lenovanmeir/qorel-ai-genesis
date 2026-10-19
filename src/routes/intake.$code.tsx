@@ -439,7 +439,7 @@ function IntakePage() {
       const response = await fetch(DEMO_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-beheercode": beheercode.trim() },
-        body: JSON.stringify({ actie: "versturen", code, nakijk, sleutel: beheercode.trim() }),
+        body: JSON.stringify({ actie: "versturen", code, nakijk }),
       });
       if (response.status === 403) {
         setDemo("code");
