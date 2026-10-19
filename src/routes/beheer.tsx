@@ -367,7 +367,7 @@ function BeheerPagina() {
     try {
       const antwoord = await fetch(INTAKE_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-beheercode": sleutel },
         body: JSON.stringify({ code: k.code, status: nieuw }),
       });
       if (!antwoord.ok) throw new Error(`status ${antwoord.status}`);
@@ -429,7 +429,7 @@ function BeheerPagina() {
       } else {
         const antwoord = await fetch(INTAKE_URL, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", "x-beheercode": sleutel },
           body: JSON.stringify({ code, naam, website: nieuwWebsite.trim(), status: "concept" }),
         });
         if (!antwoord.ok) throw new Error(`status ${antwoord.status}`);
