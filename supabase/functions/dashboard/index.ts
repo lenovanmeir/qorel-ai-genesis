@@ -238,7 +238,7 @@ function demoVorm(d: any) {
   };
 }
 
-async function schrijf(pad: string, method: "PATCH", body: unknown): Promise<void> {
+async function schrijf(pad: string, method: "PATCH" | "POST", body: unknown): Promise<void> {
   const antwoord = await fetch(`${SUPABASE_URL}/rest/v1/${pad}`, {
     method,
     headers: {
@@ -275,6 +275,24 @@ async function demoActie(demo: { code?: string; actie?: string }): Promise<void>
   await schrijf(`demo_aanvragen?code=eq.${code}`, "PATCH", {
     dm_verstuurd_op: demo.actie === "dm_verstuurd" ? new Date().toISOString() : null,
   });
+}
+
+// POST {vasteKost: {id?, naam, categorie, bedrag, valuta, per, actief}}: Leno adds or edits a fixed cost.
+async function vasteKostBewaren(k: Record<string, unknown>): Promise<void> {
+  const naam = String(k?.naam ?? "").trim().slice(0, 120);
+  const bedrag = Number(k?.bedrag);
+  if (!naam || !Number.isFinite(bedrag) || bedrag < 0 || bedrag > 100000) throw new ActieFout("Ongeldige vaste kost");
+  const rij = {
+    naam,
+    categorie: String(k?.categorie ?? "").trim().slice(0, 60) || null,
+    bedrag: Math.round(bedrag * 100) / 100,
+    valuta: k?.valuta === "USD" ? "USD" : "EUR",
+    per: k?.per === "jaar" ? "jaar" : "maand",
+    actief: k?.actief !== false,
+  };
+  const id = Number(k?.id);
+  if (Number.isInteger(id) && id > 0) await schrijf(`vaste_kosten?id=eq.${id}`, "PATCH", rij);
+  else await schrijf("vaste_kosten", "POST", rij);
 }
 
 // The Leads tab never loads every clinic: it shows the clinics that need Leno (see "heet") and searches on demand.
@@ -315,6 +333,10 @@ Deno.serve(async (req) => {
         await demoActie(body.demo);
         return json({ ok: true });
       }
+      if (body?.vasteKost) {
+        await vasteKostBewaren(body.vasteKost);
+        return json({ ok: true });
+      }
       return json({ ok: true, aantal: await voerActiesUit(body?.acties) });
     } catch (e) {
       if (e instanceof ActieFout) return json({ fout: e.message }, 400);
@@ -347,7 +369,7 @@ Deno.serve(async (req) => {
     const maandStart = new Date();
     maandStart.setUTCDate(1);
     maandStart.setUTCHours(0, 0, 0, 0);
-    const [leads, demos, verbruik, funnel, heet] = await Promise.all([
+    const [leads, demos, verbruik, funnel, heet, vasteKosten] = await Promise.all([
       // Sheet order first (the old rows), then everything added since 18/10 in the order it came in.
       leesAlles(`leads?select=${kolommen}&status=in.${dagStatussen}&order=sheet_rij.asc.nullslast,aangemaakt_op.asc`),
       // Demos and usage are extra: if one of these reads fails the lists still load.
@@ -356,11 +378,12 @@ Deno.serve(async (req) => {
       lees("lead_funnel?select=fase,rang,bereikt,nu").catch(() => []),
       // Clinics that need Leno personally now: they answered, used their demo or booked a call.
       lees("leads?select=id,sheet_rij,kliniek,stad,instagram,email,status,fase,fase_sinds&fase=in.(REPLIED,DEMO_USED,MEETING_BOOKED,MEETING_HELD)&order=fase_sinds.desc&limit=50").catch(() => []),
+      lees("vaste_kosten?select=id,naam,categorie,bedrag,valuta,per,actief,notitie&order=id.asc").catch(() => []),
     ]);
     return json({
       ...bouwLijst(leads as Lead[]),
       demos: (demos as unknown[]).map(demoVorm),
-      verbruik: verbruikDezeMaand(verbruik as VerbruikRij[], maandStart),
+      verbruik: { ...verbruikDezeMaand(verbruik as VerbruikRij[], maandStart), vaste_kosten: vasteKosten },
       funnel,
       heet,
       bron: "database",

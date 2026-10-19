@@ -312,3 +312,12 @@ html:has(.qa) {
   .qa .dash-kpi b { font-size: 1.5rem; }
   .qa .dash-kpi small { display: none; }
 }
+.qa .dash-vast { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.qa .dash-vast input, .qa .dash-vast select { background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; color: var(--text); font: inherit; font-size: 0.85rem; }
+.qa .dash-vast input:first-child { flex: 1 1 180px; min-width: 0; }
+.qa .dash-vast input[type="number"] { width: 90px; }
+.qa .dash-vast input[type="checkbox"] { width: auto; padding: 0; }
+.qa .dash-vast label { font-size: 0.82rem; color: var(--muted); display: flex; align-items: center; gap: 4px; }
+.qa .dash-vast button { background: var(--accent); color: #fff; border: 0; border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 0.82rem; cursor: pointer; }
+.qa .dash-vast button:disabled { opacity: 0.5; cursor: default; }
+.qa .dash-vast small { flex-basis: 100%; color: var(--muted); font-size: 0.78rem; }

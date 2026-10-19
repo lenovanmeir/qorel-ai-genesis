@@ -1411,7 +1411,126 @@ type VerbruikOverzicht = {
   oproepen: number;
   eigen: VerbruikPost[];
   per_klant: { kliniek: string; usd: number; oproepen: number; onderdelen: VerbruikPost[] }[];
+  vaste_kosten?: VasteKost[];
 };
+
+type VasteKost = {
+  id?: number;
+  naam: string;
+  categorie: string | null;
+  bedrag: number | string;
+  valuta: "EUR" | "USD";
+  per: "maand" | "jaar";
+  actief: boolean;
+  notitie?: string | null;
+};
+
+// What a fixed cost weighs on one month: yearly costs count for a twelfth.
+const perMaand = (k: VasteKost) => (k.actief ? Number(k.bedrag) / (k.per === "jaar" ? 12 : 1) : 0);
+const geld = (n: number, valuta: string) => `${valuta === "EUR" ? "€" : "$"}${n.toFixed(2)}`;
+
+// Leno's subscriptions, domains and mail: edited here, saved per row through the Edge Function.
+function VasteKosten({
+  lijst,
+  sleutel,
+  opnieuw,
+}: {
+  lijst: VasteKost[];
+  sleutel: string;
+  opnieuw: () => void;
+}) {
+  const [rijen, setRijen] = useState<VasteKost[]>(lijst);
+  const [bezig, setBezig] = useState<number | null>(null);
+  const [fout, setFout] = useState("");
+  const leeg = (): VasteKost => ({
+    naam: "",
+    categorie: "",
+    bedrag: 0,
+    valuta: "EUR",
+    per: "maand",
+    actief: true,
+  });
+  const [nieuw, setNieuw] = useState<VasteKost>(leeg);
+
+  const zet = (i: number, veld: Partial<VasteKost>) =>
+    setRijen((r) => r.map((x, j) => (j === i ? { ...x, ...veld } : x)));
+
+  async function bewaarRij(k: VasteKost, i: number) {
+    setBezig(i);
+    setFout("");
+    try {
+      const antwoord = await bewaar(sleutel, { vasteKost: k });
+      if (!antwoord.ok) throw new Error();
+      if (i === -1) setNieuw(leeg());
+      opnieuw();
+    } catch {
+      setFout("Bewaren lukte niet. Controleer naam en bedrag.");
+    } finally {
+      setBezig(null);
+    }
+  }
+
+  const totaal = (valuta: string) =>
+    rijen.filter((k) => k.valuta === valuta).reduce((som, k) => som + perMaand(k), 0);
+  const regel = (k: VasteKost, i: number, op: (v: Partial<VasteKost>) => void) => (
+    <li key={k.id ?? "nieuw"} className="dash-vast">
+      <input
+        value={k.naam}
+        placeholder="Naam (bv. Firecrawl)"
+        onChange={(e) => op({ naam: e.target.value })}
+      />
+      <input
+        type="number"
+        min="0"
+        step="0.01"
+        value={k.bedrag}
+        onChange={(e) => op({ bedrag: e.target.value })}
+      />
+      <select
+        value={k.valuta}
+        onChange={(e) => op({ valuta: e.target.value as VasteKost["valuta"] })}
+      >
+        <option value="EUR">€</option>
+        <option value="USD">$</option>
+      </select>
+      <select value={k.per} onChange={(e) => op({ per: e.target.value as VasteKost["per"] })}>
+        <option value="maand">per maand</option>
+        <option value="jaar">per jaar</option>
+      </select>
+      <label>
+        <input
+          type="checkbox"
+          checked={k.actief}
+          onChange={(e) => op({ actief: e.target.checked })}
+        />{" "}
+        actief
+      </label>
+      <button
+        type="button"
+        disabled={bezig === i || !k.naam.trim()}
+        onClick={() => void bewaarRij(k, i)}
+      >
+        {bezig === i ? "…" : i === -1 ? "Toevoegen" : "Bewaren"}
+      </button>
+      {k.notitie && <small>{k.notitie}</small>}
+    </li>
+  );
+
+  return (
+    <div className="dash-card">
+      <h2>Vaste kosten</h2>
+      <p className="dash-note">
+        Per maand: {geld(totaal("EUR"), "EUR")} + {geld(totaal("USD"), "USD")}. Jaarbedragen tellen
+        voor een twaalfde mee.
+      </p>
+      {fout && <p className="dash-note">{fout}</p>}
+      <ul className="dash-list plain">
+        {rijen.map((k, i) => regel(k, i, (v) => zet(i, v)))}
+        {regel(nieuw, -1, (v) => setNieuw((n) => ({ ...n, ...v })))}
+      </ul>
+    </div>
+  );
+}
 
 const ONDERDEEL_NAAM: Record<string, string> = {
   leads: "Leads zoeken",
@@ -1448,12 +1567,13 @@ function Verbruik() {
   const [sleutel] = useState(leesSleutel);
   const [verbruik, setVerbruik] = useState<VerbruikOverzicht | null>(null);
   const [fout, setFout] = useState("");
+  const [versie, setVersie] = useState(0);
 
   useEffect(() => {
     if (!sleutel) return;
     void (async () => {
       try {
-        const antwoord = await haalLijst(sleutel);
+        const antwoord = await haalLijst(sleutel, versie > 0);
         if (!antwoord.ok) throw new Error();
         const data = (await antwoord.json()) as { verbruik?: VerbruikOverzicht };
         if (!data.verbruik) throw new Error();
@@ -1462,7 +1582,7 @@ function Verbruik() {
         setFout("Het verbruik kon niet geladen worden. Probeer het zo opnieuw.");
       }
     })();
-  }, [sleutel]);
+  }, [sleutel, versie]);
 
   if (!sleutel) {
     return (
@@ -1488,7 +1608,7 @@ function Verbruik() {
       <Cijfers
         items={[
           [`AI-kost ${maand}`, dollar(verbruik.totaal_usd), `${verbruik.oproepen} oproepen`],
-          ["Jouw eigen kosten", dollar(verbruik.eigen_usd), "leads, teksten, demo's"],
+          ["Jouw eigen AI-kosten", dollar(verbruik.eigen_usd), "leads, teksten, demo's"],
           [
             "Kosten van klanten",
             dollar(verbruik.klanten_usd),
@@ -1496,8 +1616,14 @@ function Verbruik() {
           ],
         ]}
       />
+      <VasteKosten
+        key={versie}
+        lijst={verbruik.vaste_kosten ?? []}
+        sleutel={sleutel}
+        opnieuw={() => setVersie((v) => v + 1)}
+      />
       <div className="dash-card">
-        <h2>Jouw eigen kosten</h2>
+        <h2>Jouw eigen AI-kosten</h2>
         <p className="dash-note">
           OpenAI rekent in dollar. Bedragen zijn berekend uit de tokens van elke oproep.
         </p>

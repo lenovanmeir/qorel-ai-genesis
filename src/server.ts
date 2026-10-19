@@ -66,8 +66,17 @@ async function normalizeCatastrophicSsrResponse(response: Response): Promise<Res
   return brandedErrorResponse();
 }
 
+// Since 19/10 only Qore Aesthetics is active: every qorelabs.io page moves permanently to the same path on
+// qoreaesthetics.com, so old links (privacy for the Meta app, intake links, beheer) keep working.
+// E-mail on qorelabs.io is DNS only and is not affected.
+const OUD_DOMEIN = /^(www\.)?qorelabs\.io$/i;
+
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
+    const url = new URL(request.url);
+    if (OUD_DOMEIN.test(url.hostname)) {
+      return Response.redirect(`https://qoreaesthetics.com${url.pathname}${url.search}`, 308);
+    }
     try {
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
