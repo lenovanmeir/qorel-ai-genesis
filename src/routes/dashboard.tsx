@@ -1193,7 +1193,8 @@ function demoLink(d: Demo) {
 
 // Claude writes a message per clinic in dm_tekst; without one the dashboard offers a standard text.
 function demoBericht(d: Demo) {
-  const link = demoLink(d);
+  // The link only shows once the demo is active, so a link that does not work yet can never be copied by hand.
+  const link = d.verstuurd_op ? demoLink(d) : "[link verschijnt zodra je de demo activeert]";
   // Demos built in advance carry their DM with [DEMO-LINK]; the real link is filled in here.
   if (d.dm_tekst) return d.dm_tekst.split("[DEMO-LINK]").join(link);
   if (d.taal === "fr")
