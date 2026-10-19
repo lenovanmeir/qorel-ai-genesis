@@ -1541,6 +1541,7 @@ const ONDERDEEL_NAAM: Record<string, string> = {
   chatbot: "Chatbot (gesprekken)",
   vertalen: "Vertalen",
   demo_controle: "Demo-controle",
+  ab_test: "Modellen vergelijken (A/B-test)",
 };
 
 const dollar = (n: number) => `$${n.toFixed(n < 1 ? 4 : 2)}`;
