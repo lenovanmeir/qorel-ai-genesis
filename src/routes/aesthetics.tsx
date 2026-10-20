@@ -16,7 +16,7 @@ const INSTAGRAM_URL = "https://www.instagram.com/qoreaesthetics/";
 
 // Meta business verification: the code from Business Settings → Brand safety → Domains → qoreaesthetics.com →
 // "Meta-tag". Empty means no tag is rendered.
-const META_DOMEIN_CODE = "";
+const META_DOMEIN_CODE = "90h7zv6n34zsh4g4doin3h35aqz593";
 
 const TITLE = "Qore Aesthetics · AI-receptioniste voor esthetische klinieken";
 const DESCRIPTION =
