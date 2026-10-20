@@ -7,6 +7,13 @@ import aestheticsCss from "../styles/aesthetics.css?url";
 // n8n (workflow "Demopagina en versturen") checks the 7 days and the message limit.
 const DEMO_URL = "https://qorelabs.app.n8n.cloud/webhook/qa-demo";
 const CALL_URL = "https://cal.com/leno-qore/qore-aesthetics";
+// The invitation card and the Cal.com prefill read two database functions that only answer to this demo's token.
+const RPC_URL = "https://gqigmmezcmtwusgbdxny.supabase.co/rest/v1/rpc/";
+const PUBLIEKE_SLEUTEL =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxaWdtbWV6Y210d3VzZ2JkeG55Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg3NjQxNjAsImV4cCI6MjEwNDM0MDE2MH0.D9CnIkNkaKOk7GfK1E7drEzu1z6Eoa-ZENml9yrFd28";
+// The card shows after the 3rd message and, if dismissed with "Later", once more after the 8th.
+const EERSTE_UITNODIGING = 3;
+const TWEEDE_UITNODIGING = 8;
 
 export const Route = createFileRoute("/demo/$token")({
   // ?nakijk=... is only in Leno's Telegram link: his test messages do not count.
@@ -43,6 +50,15 @@ type Info = {
   beheerder?: boolean;
 };
 
+type Uitnodiging = {
+  kliniek?: string | null;
+  website?: string | null;
+  email?: string | null;
+  max?: number | null;
+  gebruikt?: number | null;
+  geboekt?: boolean;
+};
+
 const LOCALE: Record<Taal, string> = { nl: "nl-BE", fr: "fr-BE", en: "en-GB" };
 
 const TEKSTEN = {
@@ -69,6 +85,10 @@ const TEKSTEN = {
     fout: "Er liep iets mis. Probeer het zo opnieuw.",
     gesprek: "Wil je dit voor je kliniek, of samen overlopen?",
     gesprekLink: "Plan een gesprek van 20 minuten met Leno →",
+    uitnodiging: (k: string) =>
+      `Bevalt ze? Dan zetten we deze receptioniste live voor ${k}, op jullie Instagram en website. Plan 20 minuten met Leno.`,
+    uitnodigingKnop: "Plan een gesprek",
+    later: "Later",
   },
   fr: {
     titel: (k: string) => `La réceptionniste démo de ${k}`,
@@ -93,6 +113,10 @@ const TEKSTEN = {
     fout: "Un problème est survenu. Réessayez dans un instant.",
     gesprek: "Vous voulez ceci pour votre clinique, ou la parcourir ensemble ?",
     gesprekLink: "Planifiez un appel de 20 minutes avec Leno →",
+    uitnodiging: (k: string) =>
+      `Elle vous plaît ? Alors nous pouvons mettre cette réceptionniste en ligne pour ${k}, sur votre Instagram et votre site web. Planifiez 20 minutes avec Leno.`,
+    uitnodigingKnop: "Planifier un appel",
+    later: "Plus tard",
   },
   en: {
     titel: (k: string) => `${k}'s demo receptionist`,
@@ -117,6 +141,10 @@ const TEKSTEN = {
     fout: "Something went wrong. Please try again in a moment.",
     gesprek: "Want this for your clinic, or go through it together?",
     gesprekLink: "Book a 20-minute call with Leno →",
+    uitnodiging: (k: string) =>
+      `Like it? Then we can take this receptionist live for ${k}, on your Instagram and website. Schedule 20 minutes with Leno.`,
+    uitnodigingKnop: "Book a call",
+    later: "Later",
   },
 } satisfies Record<Taal, unknown>;
 
@@ -131,6 +159,44 @@ async function vraag(body: Record<string, unknown>): Promise<Record<string, unkn
   return json;
 }
 
+async function rpc(functie: string, body: Record<string, unknown>): Promise<unknown> {
+  const response = await fetch(RPC_URL + functie, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", apikey: PUBLIEKE_SLEUTEL, Authorization: `Bearer ${PUBLIEKE_SLEUTEL}` },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) throw new Error(`status ${response.status}`);
+  return response.json().catch(() => null);
+}
+
+// Cal.com fills in the clinic's details and passes the demo token on to the booking,
+// so the booking always lands on the right lead (Edge Function calcom).
+function gesprekLink(token: string, u: Uitnodiging | null): string {
+  const zoek = new URLSearchParams();
+  if (u?.kliniek) zoek.set("kliniek", u.kliniek);
+  if (u?.website) zoek.set("website", u.website);
+  if (u?.email) zoek.set("email", u.email);
+  zoek.set("metadata[demo]", token);
+  return `${CALL_URL}?${zoek.toString()}`;
+}
+
+// How often the clinic clicked "Later" on this demo, remembered in this browser only.
+const laterSleutel = (token: string) => `qa-demo-later-${token}`;
+function leesLater(token: string): number {
+  try {
+    return Number(window.localStorage.getItem(laterSleutel(token)) ?? 0) || 0;
+  } catch {
+    return 0;
+  }
+}
+function bewaarLater(token: string, keer: number) {
+  try {
+    window.localStorage.setItem(laterSleutel(token), String(keer));
+  } catch {
+    // Private window or blocked storage: the card simply comes back on the next visit.
+  }
+}
+
 function DemoPagina() {
   const { token } = Route.useParams();
   const { nakijk } = Route.useSearch();
@@ -142,8 +208,18 @@ function DemoPagina() {
   const [bezig, setBezig] = useState(false);
   const [melding, setMelding] = useState<string | null>(null);
   const [gevraagd, setGevraagd] = useState(false);
+  const [uitnodiging, setUitnodiging] = useState<Uitnodiging | null>(null);
+  const [later, setLater] = useState(0);
+  const getoondGelogd = useRef(false);
   const einde = useRef<HTMLDivElement>(null);
   const t = TEKSTEN[taal];
+
+  useEffect(() => {
+    setLater(leesLater(token));
+    rpc("demo_uitnodiging", { p_token: token })
+      .then((u) => setUitnodiging((u as Uitnodiging | null) ?? null))
+      .catch(() => setUitnodiging(null));
+  }, [token]);
 
   useEffect(() => {
     vraag({ actie: "info", token, nakijk })
@@ -169,6 +245,32 @@ function DemoPagina() {
   const datum = info?.verloopt_op
     ? new Date(info.verloopt_op).toLocaleDateString(LOCALE[taal], { weekday: "long", day: "numeric", month: "long" })
     : "";
+
+  // Messages used so far: from the database at load, then from the "remaining" count each answer brings.
+  const max = uitnodiging?.max ?? null;
+  const gebruikt =
+    max !== null && typeof info?.resterend === "number" ? max - info.resterend : (uitnodiging?.gebruikt ?? 0);
+  const drempel = later === 0 ? EERSTE_UITNODIGING : later === 1 ? TWEEDE_UITNODIGING : Infinity;
+  const toonUitnodiging =
+    staat === "actief" && !info?.beheerder && !nakijk && !uitnodiging?.geboekt && !!kliniek && gebruikt >= drempel;
+  const afspraakUrl = gesprekLink(token, uitnodiging);
+
+  useEffect(() => {
+    if (!toonUitnodiging || getoondGelogd.current) return;
+    getoondGelogd.current = true;
+    void rpc("demo_uitnodiging_log", { p_token: token, p_soort: "getoond" }).catch(() => undefined);
+  }, [toonUitnodiging, token]);
+
+  const geklikt = () => {
+    if (info?.beheerder || nakijk) return;
+    void rpc("demo_uitnodiging_log", { p_token: token, p_soort: "geklikt" }).catch(() => undefined);
+  };
+
+  const laterKlik = () => {
+    const keer = later + 1;
+    bewaarLater(token, keer);
+    setLater(keer);
+  };
 
   async function stuur(tekst: string) {
     const bericht = tekst.trim();
@@ -277,6 +379,19 @@ function DemoPagina() {
                     ))}
                   </div>
                 )}
+                {toonUitnodiging && (
+                  <aside className="demo-invite" aria-live="polite">
+                    <p>{t.uitnodiging(kliniek)}</p>
+                    <div className="demo-choices">
+                      <button className="btn" type="button" onClick={laterKlik}>
+                        {t.later}
+                      </button>
+                      <a className="btn primary" href={afspraakUrl} target="_blank" rel="noopener" onClick={geklikt}>
+                        {t.uitnodigingKnop}
+                      </a>
+                    </div>
+                  </aside>
+                )}
                 <form className="demo-input" onSubmit={verstuur}>
                   <input
                     value={invoer}
@@ -303,7 +418,7 @@ function DemoPagina() {
                       {t.meerTijd}
                     </button>
                   )}
-                  <a className="btn primary" href={CALL_URL} target="_blank" rel="noopener">
+                  <a className="btn primary" href={afspraakUrl} target="_blank" rel="noopener" onClick={geklikt}>
                     {t.afspraak}
                   </a>
                 </div>
@@ -317,7 +432,7 @@ function DemoPagina() {
 
             <p className="form-call">
               {t.gesprek}{" "}
-              <a className="call-link" href={CALL_URL} target="_blank" rel="noopener">
+              <a className="call-link" href={afspraakUrl} target="_blank" rel="noopener" onClick={geklikt}>
                 {t.gesprekLink}
               </a>
             </p>

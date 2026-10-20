@@ -1,5 +1,5 @@
 // Cal.com calls this when someone books, reschedules, cancels or finishes a call with Leno.
-// It finds the clinic's lead (Instagram handle, e-mail, website domain or exact clinic name), moves its funnel
+// It finds the clinic's lead (demo token from the demo page, else Instagram handle, e-mail, website domain or exact clinic name), moves its funnel
 // stage (fase) and logs the call on the lead's timeline. A booking from an unknown clinic becomes a new lead.
 // Every Cal.com delivery is stored once (extern_id), so a retried webhook changes nothing twice.
 
@@ -104,7 +104,14 @@ Deno.serve(async (req) => {
     const kliniek = antwoord(r, "kliniek");
     const websiteOfIg = antwoord(r, "website");
 
-    let leadId = await zoekLead(kliniek, websiteOfIg, email);
+    // Booked from a demo page: the link carries metadata[demo]=<token>, which points at exactly one lead.
+    const demoToken = typeof p.metadata?.demo === "string" ? p.metadata.demo : "";
+    let leadId: string | null = null;
+    if (/^[0-9a-f]{32}$/.test(demoToken)) {
+      const [demo] = await dbJson<{ lead_id: string | null }[]>(`demo_aanvragen?select=lead_id&token=eq.${demoToken}&limit=1`);
+      leadId = demo?.lead_id ?? null;
+    }
+    if (!leadId) leadId = await zoekLead(kliniek, websiteOfIg, email);
     let nieuw = false;
     if (!leadId && soort === "BOOKING_CREATED") {
       // A clinic that found Leno by itself: it starts as a lead with a booked call.
@@ -138,7 +145,7 @@ Deno.serve(async (req) => {
         soort: "call",
         kanaal: "calcom",
         inhoud: `${soort} ${p.startTime ?? ""}`.trim(),
-        data: { trigger: soort, uid: p.uid, start: p.startTime, einde: p.endTime, naam, email, kliniek, website: websiteOfIg },
+        data: { trigger: soort, uid: p.uid, start: p.startTime, einde: p.endTime, naam, email, kliniek, website: websiteOfIg, demo: demoToken || null },
         bron: "calcom",
         extern_id: `cal:${p.uid}:${soort}:${p.startTime ?? ""}`,
       }),
