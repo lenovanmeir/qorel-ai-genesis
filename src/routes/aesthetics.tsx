@@ -14,6 +14,10 @@ const SUPPORT_EMAIL = "support@qorelabs.io";
 const CALL_URL = "https://cal.com/leno-qore/qore-aesthetics";
 const INSTAGRAM_URL = "https://www.instagram.com/qoreaesthetics/";
 
+// Meta business verification: the code from Business Settings → Brand safety → Domains → qoreaesthetics.com →
+// "Meta-tag". Empty means no tag is rendered.
+const META_DOMEIN_CODE = "";
+
 const TITLE = "Qore Aesthetics · AI-receptioniste voor esthetische klinieken";
 const DESCRIPTION =
   "Je kliniek is gesloten. Je patiënten niet. Een AI-receptioniste die dag en nacht antwoordt op Instagram, WhatsApp, Facebook en je website, in het Nederlands, Frans en Engels.";
@@ -35,6 +39,7 @@ export const Route = createFileRoute("/aesthetics")({
       { name: "twitter:title", content: TITLE },
       { name: "twitter:description", content: DESCRIPTION },
       { name: "theme-color", content: "#07070B" },
+      ...(META_DOMEIN_CODE ? [{ name: "facebook-domain-verification", content: META_DOMEIN_CODE }] : []),
     ],
     links: [
       { rel: "canonical", href: SITE_URL },

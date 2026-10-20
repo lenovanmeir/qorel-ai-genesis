@@ -263,7 +263,7 @@ const nl: Teksten = {
     ],
     note: "Demo · fictieve kliniek en voorbeeldprijzen · klik op een knop",
   },
-  footer: { copy: "© 2026 Qore Aesthetics · een merk van QoreLabs (Qore LLC)", nav: "Voettekst", privacy: "Privacy" },
+  footer: { copy: "© 2026 Qore Aesthetics · een merk van Qore LLC", nav: "Voettekst", privacy: "Privacy" },
 };
 
 const fr: Teksten = {
@@ -430,7 +430,7 @@ const fr: Teksten = {
     ],
     note: "Démo · clinique fictive et prix d'exemple · cliquez sur un bouton",
   },
-  footer: { copy: "© 2026 Qore Aesthetics · une marque de QoreLabs (Qore LLC)", nav: "Pied de page", privacy: "Confidentialité" },
+  footer: { copy: "© 2026 Qore Aesthetics · une marque de Qore LLC", nav: "Pied de page", privacy: "Confidentialité" },
 };
 
 const en: Teksten = {
@@ -597,7 +597,7 @@ const en: Teksten = {
     ],
     note: "Demo · fictional clinic and example prices · tap a button",
   },
-  footer: { copy: "© 2026 Qore Aesthetics · a brand of QoreLabs (Qore LLC)", nav: "Footer", privacy: "Privacy" },
+  footer: { copy: "© 2026 Qore Aesthetics · a brand of Qore LLC", nav: "Footer", privacy: "Privacy" },
 };
 
 export const AESTHETICS_TEKSTEN: Record<Lang, Teksten> = { nl, fr, en };
