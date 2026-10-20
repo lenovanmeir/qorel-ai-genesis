@@ -95,7 +95,7 @@ const PRIVACY_BODY = `
 <h2>8. Jouw rechten</h2>
 <p>Je hebt het recht om je gegevens in te zien, te laten verbeteren of verwijderen, de verwerking te beperken, bezwaar te maken en je gegevens over te dragen. Stuur hiervoor een e-mail naar <strong><a href="mailto:hello@qorelabs.io">hello@qorelabs.io</a></strong>. Wij antwoorden binnen 30 dagen.</p>
 <p>Ben je niet tevreden? Dan kun je klacht indienen bij de Gegevensbeschermingsautoriteit: <a href="https://www.gegevensbeschermingsautoriteit.be" rel="noopener">www.gegevensbeschermingsautoriteit.be</a>.</p>
-<h2>9. Gegevens laten verwijderen (id="verwijderen")</h2>
+<h2 id="verwijderen">9. Gegevens laten verwijderen</h2>
 <p>Wil je dat wij alle gegevens verwijderen die via Instagram of onze chat over jou zijn opgeslagen?</p>
 <ul>
 <li>Stuur een e-mail naar <strong><a href="mailto:hello@qorelabs.io">hello@qorelabs.io</a></strong> met als onderwerp <strong>"Verwijder mijn gegevens"</strong>.</li>
@@ -150,7 +150,7 @@ const PRIVACY_BODY = `
 <h2>8. Your rights</h2>
 <p>You have the right to access, correct or delete your data, restrict processing, object, and receive your data in a portable format. Email <strong><a href="mailto:hello@qorelabs.io">hello@qorelabs.io</a></strong>. We respond within 30 days.</p>
 <p>You can also lodge a complaint with the Belgian Data Protection Authority: <a href="https://www.dataprotectionauthority.be" rel="noopener">www.dataprotectionauthority.be</a>.</p>
-<h2>9. Data deletion (id="delete")</h2>
+<h2 id="delete">9. Data deletion</h2>
 <p>Want us to delete all data stored about you via Instagram or our chat?</p>
 <ul>
 <li>Email <strong><a href="mailto:hello@qorelabs.io">hello@qorelabs.io</a></strong> with the subject <strong>"Delete my data"</strong>.</li>
