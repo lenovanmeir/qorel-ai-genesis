@@ -113,6 +113,8 @@ function Cijfers({ items }: { items: [string, string, string?][] }) {
 // Since 18/10 the database is the only source of the leads: the Supabase Edge Function "dashboard" serves the
 // lists (GET) and saves the buttons (POST). The Google Sheet is only a nightly copy, so there is no n8n fallback.
 const LIJST_URL = "https://gqigmmezcmtwusgbdxny.supabase.co/functions/v1/dashboard";
+// Activating a demo goes through the same n8n step as « Klaar – verstuur demo » on the review page.
+const DEMO_URL = "https://qorelabs.app.n8n.cloud/webhook/qa-demo";
 
 // Every tab needs the same list, so it is fetched once and shared for a minute: switching tabs costs nothing.
 // After a button is saved (or "Vernieuwen") the list is fetched fresh.
@@ -1124,6 +1126,13 @@ type Demo = {
   } | null;
 };
 
+// 5/5 test questions and more than 10 treatments: may be approved in one batch. Same rule as the database column
+// demo_aanvragen.hoge_kwaliteit, which the 05:10 Telegram overview uses.
+function hogeKwaliteit(d: Demo): boolean {
+  const c = d.controle;
+  return !!c && c.totaal === 5 && c.ok === 5 && (c.behandelingen ?? 0) > 10;
+}
+
 type DemoStaat = {
   label: string;
   soort: "ok" | "warn" | "accent" | "";
@@ -1220,6 +1229,8 @@ function Demos() {
   const [laden, setLaden] = useState(false);
   const [gekopieerd, setGekopieerd] = useState("");
   const [bezig, setBezig] = useState("");
+  const [batch, setBatch] = useState<"" | "zeker" | "bezig">("");
+  const [batchUitslag, setBatchUitslag] = useState("");
 
   async function ophalen(vers = false) {
     if (!sleutel) return;
@@ -1249,6 +1260,35 @@ function Demos() {
     } catch {
       setFout("Kopiëren lukte niet. Selecteer de tekst en kopieer hem zelf.");
     }
+  }
+
+  // Activates every high-quality demo that still waits for review, one by one, exactly like « Klaar – verstuur
+  // demo » on the review page: the link starts working and e-mail leads get their demo mail. Instagram DMs are
+  // never sent automatically; Leno still sends each one himself.
+  async function batchGoedkeuren(lijst: Demo[]) {
+    setBatch("bezig");
+    setFout("");
+    let gelukt = 0;
+    for (const d of lijst) {
+      try {
+        const antwoord = await fetch(DEMO_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-beheercode": sleutel },
+          body: JSON.stringify({ actie: "versturen", code: d.code, nakijk: d.nakijk }),
+        });
+        const json = (await antwoord.json().catch(() => ({}))) as { ok?: boolean };
+        if (antwoord.ok && json.ok !== false) gelukt++;
+      } catch {
+        // Counted as not approved; the demo stays in the list for a manual review.
+      }
+    }
+    setBatchUitslag(
+      gelukt === lijst.length
+        ? `${gelukt} demo's goedgekeurd. Stuur nu per kliniek de DM.`
+        : `${gelukt} van ${lijst.length} goedgekeurd. Kijk de andere na via « Nakijken ».`,
+    );
+    setBatch("");
+    await ophalen(true);
   }
 
   async function dmVerstuurd(d: Demo) {
@@ -1287,6 +1327,9 @@ function Demos() {
   const teSturen = demos.filter((d) => demoStaat(d).volgorde === 0).length;
   const nakijken = demos.filter((d) => demoStaat(d).label === "Nakijken").length;
   const inGebruik = demos.filter((d) => d.gebruikt > 0).length;
+  const klaarVoorBatch = demos.filter(
+    (d) => hogeKwaliteit(d) && demoStaat(d).label === "Nakijken" && d.code && d.nakijk,
+  );
 
   return (
     <section className="dash-section">
@@ -1298,6 +1341,51 @@ function Demos() {
         ]}
       />
       {fout && <p className="dash-error">{fout}</p>}
+      {(klaarVoorBatch.length > 0 || batchUitslag) && (
+        <div className="dash-card">
+          <div className="dash-card-head">
+            <h2>Hoge kwaliteit – klaar voor batch-goedkeuring</h2>
+          </div>
+          {klaarVoorBatch.length > 0 && (
+            <>
+              <p className="dash-note">
+                Testvragen 5/5 en meer dan 10 behandelingen:{" "}
+                {klaarVoorBatch.map((d) => d.kliniek).join(", ")}. Goedkeuren zet hun link aan en mailt
+                de e-mail-leads hun demo. De Instagram-DM's stuur je daarna nog zelf.
+              </p>
+              <div className="dash-actions">
+                {batch === "zeker" ? (
+                  <>
+                    <button
+                      type="button"
+                      className="dash-btn primary"
+                      onClick={() => void batchGoedkeuren(klaarVoorBatch)}
+                    >
+                      Ja, keur {klaarVoorBatch.length} demo's goed
+                    </button>
+                    <button type="button" className="dash-btn" onClick={() => setBatch("")}>
+                      Annuleren
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    className="dash-btn primary"
+                    disabled={batch === "bezig"}
+                    onClick={() => {
+                      setBatchUitslag("");
+                      setBatch("zeker");
+                    }}
+                  >
+                    {batch === "bezig" ? "Bezig met goedkeuren…" : `Alles goedkeuren (${klaarVoorBatch.length})`}
+                  </button>
+                )}
+              </div>
+            </>
+          )}
+          {batchUitslag && <p className="dash-note">{batchUitslag}</p>}
+        </div>
+      )}
       <div className="dash-card">
         <div className="dash-card-head">
           <h2>Demo's</h2>
@@ -1327,7 +1415,12 @@ function Demos() {
                       {d.taal.toUpperCase()} · {staat.uitleg}
                     </small>
                   </span>
-                  <em className={`dash-pill ${staat.soort}`}>{staat.label}</em>
+                  <span>
+                    {hogeKwaliteit(d) && staat.label === "Nakijken" && (
+                      <em className="dash-pill ok">Hoge kwaliteit</em>
+                    )}{" "}
+                    <em className={`dash-pill ${staat.soort}`}>{staat.label}</em>
+                  </span>
                 </div>
                 {c && (
                   <details>
