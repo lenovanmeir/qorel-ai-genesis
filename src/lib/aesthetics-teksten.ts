@@ -194,8 +194,9 @@ const nl: Teksten = {
     eyebrow: "Founding clinics",
     h2a: "De eerste drie klinieken",
     h2b: "krijgen meer.",
-    lede: "Je betaalt de gewone prijs, maar krijgt dit er gratis bij:",
+    lede: "Je betaalt de helft van de opstart, en krijgt dit er gratis bij:",
     bonus: [
+      { l: "Korting op je opstart", r: "50%" },
       { l: "Een 4e taal", r: "€250" },
       { l: "Instagram-startknoppen en keuzemenu op maat", r: "inbegrepen" },
       { l: "90 dagen wekelijks bijsturen", r: "inbegrepen" },
@@ -361,8 +362,9 @@ const fr: Teksten = {
     eyebrow: "Cliniques fondatrices",
     h2a: "Les trois premières cliniques",
     h2b: "reçoivent plus.",
-    lede: "Vous payez le prix normal, mais recevez en plus, gratuitement :",
+    lede: "Vous payez la moitié de la mise en place, et recevez en plus, gratuitement :",
     bonus: [
+      { l: "Réduction sur votre mise en place", r: "50 %" },
       { l: "Une 4e langue", r: "250 €" },
       { l: "Boutons de démarrage Instagram et menu de choix sur mesure", r: "inclus" },
       { l: "90 jours d'ajustements hebdomadaires", r: "inclus" },
@@ -528,8 +530,9 @@ const en: Teksten = {
     eyebrow: "Founding clinics",
     h2a: "The first three clinics",
     h2b: "get more.",
-    lede: "You pay the regular price, but get this on top, free:",
+    lede: "You pay half the setup fee, and get this on top, free:",
     bonus: [
+      { l: "Off your setup fee", r: "50%" },
       { l: "A 4th language", r: "€250" },
       { l: "Custom Instagram start buttons and choice menu", r: "included" },
       { l: "90 days of weekly fine-tuning", r: "included" },
