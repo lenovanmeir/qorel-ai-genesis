@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { TALEN, deFr, isTaal, type Taal } from "@/lib/intake-teksten";
+import { KlantenBeheer } from "@/components/beheer/KlantenBeheer";
 import { WidgetBeheer } from "@/components/beheer/WidgetBeheer";
 
 export const Route = createFileRoute("/beheer")({
@@ -516,6 +517,8 @@ function BeheerPagina() {
           Afsluiten
         </button>
       </header>
+
+      <KlantenBeheer sleutel={sleutel} bijgewerkt={() => ophalen(sleutel)} />
 
       <section className="mb-7 rounded-3xl border border-border bg-card p-5 sm:p-6">
         <h2 className="mb-4 font-display text-lg font-semibold text-foreground">Nieuwe kliniek</h2>
