@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { TALEN, deFr, isTaal, type Taal } from "@/lib/intake-teksten";
+import { WidgetBeheer } from "@/components/beheer/WidgetBeheer";
 
 export const Route = createFileRoute("/beheer")({
   head: () => ({
@@ -714,6 +715,8 @@ function BeheerPagina() {
           );
         })}
       </div>
+
+      <WidgetBeheer sleutel={sleutel} />
     </main>
   );
 }

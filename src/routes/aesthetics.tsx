@@ -13,6 +13,8 @@ const SUPPORT_EMAIL = "support@qorelabs.io";
 // Intro call with Leno; a secondary path next to the demo for owners who want to talk first.
 const CALL_URL = "https://cal.com/leno-qore/qore-aesthetics";
 const INSTAGRAM_URL = "https://www.instagram.com/qoreaesthetics/";
+// Locally the widget comes from this dev server, so changes to public/widget.js show up before they are deployed.
+const WIDGET_SRC = import.meta.env.DEV ? "/widget.js" : "https://qoreaesthetics.com/widget.js";
 
 // Meta business verification: the code from Business Settings → Brand safety → Domains → qoreaesthetics.com →
 // "Meta-tag". Empty means no tag is rendered.
@@ -49,6 +51,8 @@ export const Route = createFileRoute("/aesthetics")({
       },
       { rel: "stylesheet", href: aestheticsCss },
     ],
+    // Our own website widget, installed exactly the way a clinic installs it (the /beheer "Website-widget" tab).
+    scripts: [{ src: WIDGET_SRC, defer: true, "data-kliniek": "qore-aesthetics" }],
   }),
   component: AestheticsHome,
 });

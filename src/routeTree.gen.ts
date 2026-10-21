@@ -15,6 +15,7 @@ import { Route as BeheerRouteImport } from './routes/beheer'
 import { Route as ChatTestRouteImport } from './routes/chat-test'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as WidgetVoorbeeldRouteImport } from './routes/widget-voorbeeld'
 import { Route as DemoTokenRouteImport } from './routes/demo.$token'
 import { Route as IntakeCodeRouteImport } from './routes/intake.$code'
 
@@ -48,6 +49,11 @@ const PrivacyRoute = PrivacyRouteImport.update({
   path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
+const WidgetVoorbeeldRoute = WidgetVoorbeeldRouteImport.update({
+  id: '/widget-voorbeeld',
+  path: '/widget-voorbeeld',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DemoTokenRoute = DemoTokenRouteImport.update({
   id: '/demo/$token',
   path: '/demo/$token',
@@ -66,6 +72,7 @@ export interface FileRoutesByFullPath {
   '/chat-test': typeof ChatTestRoute
   '/dashboard': typeof DashboardRoute
   '/privacy': typeof PrivacyRoute
+  '/widget-voorbeeld': typeof WidgetVoorbeeldRoute
   '/demo/$token': typeof DemoTokenRoute
   '/intake/$code': typeof IntakeCodeRoute
 }
@@ -76,6 +83,7 @@ export interface FileRoutesByTo {
   '/chat-test': typeof ChatTestRoute
   '/dashboard': typeof DashboardRoute
   '/privacy': typeof PrivacyRoute
+  '/widget-voorbeeld': typeof WidgetVoorbeeldRoute
   '/demo/$token': typeof DemoTokenRoute
   '/intake/$code': typeof IntakeCodeRoute
 }
@@ -87,6 +95,7 @@ export interface FileRoutesById {
   '/chat-test': typeof ChatTestRoute
   '/dashboard': typeof DashboardRoute
   '/privacy': typeof PrivacyRoute
+  '/widget-voorbeeld': typeof WidgetVoorbeeldRoute
   '/demo/$token': typeof DemoTokenRoute
   '/intake/$code': typeof IntakeCodeRoute
 }
@@ -99,6 +108,7 @@ export interface FileRouteTypes {
     | '/chat-test'
     | '/dashboard'
     | '/privacy'
+    | '/widget-voorbeeld'
     | '/demo/$token'
     | '/intake/$code'
   fileRoutesByTo: FileRoutesByTo
@@ -109,6 +119,7 @@ export interface FileRouteTypes {
     | '/chat-test'
     | '/dashboard'
     | '/privacy'
+    | '/widget-voorbeeld'
     | '/demo/$token'
     | '/intake/$code'
   id:
@@ -119,6 +130,7 @@ export interface FileRouteTypes {
     | '/chat-test'
     | '/dashboard'
     | '/privacy'
+    | '/widget-voorbeeld'
     | '/demo/$token'
     | '/intake/$code'
   fileRoutesById: FileRoutesById
@@ -130,6 +142,7 @@ export interface RootRouteChildren {
   ChatTestRoute: typeof ChatTestRoute
   DashboardRoute: typeof DashboardRoute
   PrivacyRoute: typeof PrivacyRoute
+  WidgetVoorbeeldRoute: typeof WidgetVoorbeeldRoute
   DemoTokenRoute: typeof DemoTokenRoute
   IntakeCodeRoute: typeof IntakeCodeRoute
 }
@@ -178,6 +191,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/widget-voorbeeld': {
+      id: '/widget-voorbeeld'
+      path: '/widget-voorbeeld'
+      fullPath: '/widget-voorbeeld'
+      preLoaderRoute: typeof WidgetVoorbeeldRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/demo/$token': {
       id: '/demo/$token'
       path: '/demo/$token'
@@ -202,6 +222,7 @@ const rootRouteChildren: RootRouteChildren = {
   ChatTestRoute: ChatTestRoute,
   DashboardRoute: DashboardRoute,
   PrivacyRoute: PrivacyRoute,
+  WidgetVoorbeeldRoute: WidgetVoorbeeldRoute,
   DemoTokenRoute: DemoTokenRoute,
   IntakeCodeRoute: IntakeCodeRoute,
 }
