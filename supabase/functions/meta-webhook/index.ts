@@ -11,7 +11,10 @@ const GEHEIMEN = [Deno.env.get("META_APP_SECRET"), Deno.env.get("META_IG_APP_SEC
   .map((g) => (g ?? "").trim())
   .filter(Boolean);
 const STRENG = (Deno.env.get("META_HANDTEKENING_STRENG") ?? "").trim() === "1";
-const BEHEERCODE = (Deno.env.get("BEHEERCODE") ?? "").trim();
+// Own key for the Meta -> n8n hop (not the beheercode): n8n stores every incoming header in its execution history,
+// so this key may only open this one webhook.
+const SLEUTEL = (Deno.env.get("N8N_META_SLEUTEL") ?? "").trim();
+const SLEUTEL_KOP = SLEUTEL ? { "x-qore-sleutel": SLEUTEL } : {};
 
 async function hmacHex(geheim: string, ruw: Uint8Array): Promise<string> {
   const sleutel = await crypto.subtle.importKey("raw", new TextEncoder().encode(geheim), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
@@ -44,7 +47,7 @@ Deno.serve(async (req) => {
 
   // Meta's subscription check (hub.mode, hub.verify_token, hub.challenge): n8n checks the verify token and answers.
   if (req.method === "GET") {
-    const antwoord = await fetch(`${N8N_URL}${url.search}`, { headers: BEHEERCODE ? { "x-beheercode": BEHEERCODE } : {} });
+    const antwoord = await fetch(`${N8N_URL}${url.search}`, { headers: SLEUTEL_KOP });
     return new Response(await antwoord.text(), { status: antwoord.status, headers: { "Content-Type": "text/plain" } });
   }
   if (req.method !== "POST") return new Response("Alleen GET en POST", { status: 405 });
@@ -56,7 +59,13 @@ Deno.serve(async (req) => {
   try {
     soort = JSON.parse(new TextDecoder().decode(ruw))?.object ?? "";
   } catch { /* not JSON */ }
-  console.log(JSON.stringify({ handtekening: door ?? (kop ? "fout" : "ontbreekt"), object: soort, streng: STRENG }));
+  console.log(JSON.stringify({
+    handtekening: door ?? (kop ? "fout" : "ontbreekt"),
+    object: soort,
+    streng: STRENG,
+    // Which secrets are set (never their values), so a "fout" can be told apart from a missing secret.
+    geheimen: { facebook: !!(Deno.env.get("META_APP_SECRET") ?? "").trim(), instagram: !!(Deno.env.get("META_IG_APP_SECRET") ?? "").trim() },
+  }));
 
   if (!door && STRENG) return new Response("Handtekening klopt niet", { status: 401 });
 
@@ -67,11 +76,11 @@ Deno.serve(async (req) => {
       headers: {
         "Content-Type": "application/json",
         "x-qore-handtekening": door ?? "fout",
-        ...(BEHEERCODE ? { "x-beheercode": BEHEERCODE } : {}),
+        ...SLEUTEL_KOP,
       },
       body: ruw,
     });
-    // n8n refused it (e.g. 403 when the beheercode does not match): don't tell Meta it arrived, or the message is lost.
+    // n8n refused it (e.g. 403 when the key does not match): don't tell Meta it arrived, or the message is lost.
     if (!antwoord.ok) {
       console.error(JSON.stringify({ n8n_status: antwoord.status }));
       return new Response("n8n weigerde het bericht", { status: 500 });
