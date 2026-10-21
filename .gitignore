@@ -38,3 +38,7 @@ dist-ssr
 
 # Claude Code local session/config
 .claude/
+
+# Screen recordings for Meta App Review (too large for git)
+meta-app/*.mov
+meta-app/*.mp4
