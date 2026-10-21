@@ -60,9 +60,9 @@ Deno.serve(async (req) => {
 
   if (!door && STRENG) return new Response("Handtekening klopt niet", { status: 401 });
 
-  // Always 200 to Meta once the message is accepted; n8n confirms receipt straight away and works on it after.
+  // 200 to Meta once n8n accepted the message; n8n confirms receipt straight away and works on it after.
   try {
-    await fetch(N8N_URL, {
+    const antwoord = await fetch(N8N_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -71,6 +71,11 @@ Deno.serve(async (req) => {
       },
       body: ruw,
     });
+    // n8n refused it (e.g. 403 when the beheercode does not match): don't tell Meta it arrived, or the message is lost.
+    if (!antwoord.ok) {
+      console.error(JSON.stringify({ n8n_status: antwoord.status }));
+      return new Response("n8n weigerde het bericht", { status: 500 });
+    }
   } catch (e) {
     console.error("Doorsturen naar n8n mislukt", e);
     // 500 makes Meta retry later.
