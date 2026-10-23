@@ -2073,6 +2073,106 @@ function FicheView({ fiche, terug }: { fiche: Fiche; terug: () => void }) {
           </>
         )}
       </div>
+      {detail && (
+        <StartKaart
+          id={fiche.id}
+          instagram={veld("instagram")}
+          email={veld("email")}
+          frans={/^fr/i.test(veld("taal")) || veld("bericht").startsWith("Bonjour")}
+        />
+      )}
     </section>
+  );
+}
+
+// "Klant wil starten" (process plan P3, 23/10): after a good call Leno picks the package and the message with the
+// right Stripe link is ready. The link carries the lead's id (client_reference_id), so the payment is tied to this
+// clinic by the onboarding function and the lead becomes "Klant" by itself. The setup fee stays a Wise invoice.
+const PAKKETTEN = {
+  Start: { maand: ["€239", "https://buy.stripe.com/00w4gzghT6Nt1DA3wXafS07"], jaar: ["€199", "https://buy.stripe.com/9B65kD0iV7Rx81Y6J9afS00"] },
+  Groei: { maand: ["€419", "https://buy.stripe.com/aFa28r1mZb3Jbea8RhafS08"], jaar: ["€349", "https://buy.stripe.com/fZufZhghTb3JgyugjJafS02"] },
+  Compleet: { maand: ["€659", "https://buy.stripe.com/6oUeVd3v7go34PMebBafS09"], jaar: ["€549", "https://buy.stripe.com/5kQ5kD2r3fjZ2HE3wXafS04"] },
+} as const;
+type Pakket = keyof typeof PAKKETTEN;
+type Contract = "maand" | "jaar";
+
+function startBericht(pakket: Pakket, contract: Contract, link: string, frans: boolean) {
+  const [prijs] = PAKKETTEN[pakket][contract];
+  if (frans)
+    return `Ravi que vous souhaitiez démarrer. Voici le lien pour le pack ${pakket} (${prijs} par mois, ${contract === "jaar" ? "contrat d'un an, payé chaque mois" : "résiliable chaque mois"}) : ${link}\n\nJuste après le paiement, vous recevez un e-mail avec les prochaines étapes. La facture de démarrage suit séparément.\n\nLeno`;
+  return `Fijn dat jullie willen starten. Hier is de link voor het pakket ${pakket} (${prijs} per maand, ${contract === "jaar" ? "jaarcontract, maandelijks betaald" : "maandelijks opzegbaar"}): ${link}\n\nMeteen na de betaling krijgen jullie een mail met de volgende stappen. De opstartfactuur volgt apart.\n\nLeno`;
+}
+
+function StartKaart({ id, instagram, email, frans }: { id: string; instagram: string; email: string; frans: boolean }) {
+  const [pakket, setPakket] = useState<Pakket | null>(null);
+  const [contract, setContract] = useState<Contract>("jaar");
+  const [gekopieerd, setGekopieerd] = useState(false);
+  const link = pakket ? `${PAKKETTEN[pakket][contract][1]}?client_reference_id=${id}` : "";
+  const bericht = pakket ? startBericht(pakket, contract, link, frans) : "";
+  const chat = instagramChat(instagram);
+  const kopieer = async () => {
+    try {
+      await navigator.clipboard.writeText(bericht);
+      setGekopieerd(true);
+    } catch {
+      // Clipboard blocked: the text stays visible to copy by hand.
+    }
+  };
+  return (
+    <div className="dash-card">
+      <h2>Klant wil starten</h2>
+      <p className="dash-note">
+        Kies het pakket na het gesprek. Betaalt de kliniek via deze link, dan start de onboarding vanzelf en staat ze
+        hier op "Klant".
+      </p>
+      <div className="dash-actions">
+        {(Object.keys(PAKKETTEN) as Pakket[]).map((p) => (
+          <KeuzeKnop key={p} gekozen={pakket === p} onClick={() => {
+              setPakket(p);
+              setGekopieerd(false);
+            }}>
+            {p}
+          </KeuzeKnop>
+        ))}
+      </div>
+      <div className="dash-actions">
+        <KeuzeKnop gekozen={contract === "jaar"} onClick={() => {
+            setContract("jaar");
+            setGekopieerd(false);
+          }}>
+          Jaarcontract
+        </KeuzeKnop>
+        <KeuzeKnop gekozen={contract === "maand"} onClick={() => {
+            setContract("maand");
+            setGekopieerd(false);
+          }}>
+          Maandelijks
+        </KeuzeKnop>
+      </div>
+      {pakket && (
+        <>
+          <p className="dash-msg">{bericht}</p>
+          <div className="dash-actions">
+            {chat ? (
+              <a className="dash-btn primary" href={chat} target="_blank" rel="noreferrer" onClick={() => void kopieer()}>
+                {gekopieerd ? "Gekopieerd ✓ plak in Instagram" : "Kopieer & open Instagram"}
+              </a>
+            ) : (
+              <button type="button" className="dash-btn primary" onClick={() => void kopieer()}>
+                {gekopieerd ? "Gekopieerd ✓" : "Kopieer bericht"}
+              </button>
+            )}
+            {email && (
+              <a
+                className="dash-btn"
+                href={`mailto:${email}?subject=${encodeURIComponent(frans ? "Démarrer avec Qore Aesthetics" : "Starten met Qore Aesthetics")}&body=${encodeURIComponent(bericht)}`}
+              >
+                Open in mail
+              </a>
+            )}
+          </div>
+        </>
+      )}
+    </div>
   );
 }

@@ -157,6 +157,8 @@ type StripeSessie = {
   locale?: string | null;
   customer_details?: { email?: string | null; name?: string | null; business_name?: string | null } | null;
   custom_fields?: { key: string; text?: { value?: string | null } | null }[];
+  // The lead's id, set by the dashboard's "Klant wil starten" link (process plan P3).
+  client_reference_id?: string | null;
 };
 
 function uitStripe(s: StripeSessie) {
@@ -180,6 +182,7 @@ function uitStripe(s: StripeSessie) {
     email: s.customer_details?.email ?? null,
     taal: (["nl", "fr", "en"].includes(taal) ? taal : "nl") as Taal,
     betaalstatus: (s.payment_status === "unpaid" ? "wacht_op_betaling" : "actief") as Betaalstatus,
+    lead_id: UUID.test(s.client_reference_id ?? "") ? s.client_reference_id! : null,
   };
 }
 
@@ -242,7 +245,16 @@ async function stripeEvent(event: { type?: string; data?: { object?: unknown } }
     case "checkout.session.completed": {
       const sessie = object as StripeSessie;
       if (sessie?.mode !== "subscription") return;
-      await onboarden({ bron: "stripe", ...uitStripe(sessie) });
+      const nieuw = uitStripe(sessie);
+      const rij = await onboarden({ bron: "stripe", ...nieuw });
+      // Paid through the dashboard's "Klant wil starten" link: the lead becomes a client (fase WON via the trigger).
+      if (rij && nieuw.lead_id) {
+        await db(`leads?id=eq.${nieuw.lead_id}`, {
+          method: "PATCH",
+          headers: { "x-qore-bron": "stripe" },
+          body: JSON.stringify({ status: "Klant", volgende_stap: `Klant (${nieuw.pakket ?? "pakket?"}): onboarding loopt` }),
+        }).catch((e) => console.error("lead klant", (e as Error).message));
+      }
       return;
     }
     case "checkout.session.async_payment_succeeded":
@@ -351,6 +363,7 @@ type Nieuw = {
   email: string | null;
   taal: Taal;
   betaalstatus?: Betaalstatus;
+  lead_id?: string | null;
 };
 
 // Creates the onboarding row first (Stripe may send the same event twice: the unique session stops the second),

@@ -99,9 +99,42 @@ type LeadDemo = {
   dm_tekst: string | null;
   dm_verstuurd_op: string | null;
   taal: string;
+  berichten_gebruikt: number | null;
+  herinnering_1_op: string | null;
+  herinnering_2_op: string | null;
 };
 
 const DEMO_MISLUKT = new Set(["mislukt", "geen_website"]);
+const AGENDA = "https://cal.com/leno-qore/qore-aesthetics";
+
+// Demo reminders (process plan P3, 23/10): a demo the clinic has not used gets reminder 1 three days after the DM
+// and reminder 2 after seven days, in the daily block "Opvolgen". Fixed texts, so no AI and no n8n run.
+function demoHerinnering(d: LeadDemo | undefined): { stap: 1 | 2; dag: number } | null {
+  if (!d || DEMO_MISLUKT.has(d.status) || !d.verstuurd_op || !d.dm_verstuurd_op || (d.berichten_gebruikt ?? 0) > 0) return null;
+  const stap = !d.herinnering_1_op ? 1 : !d.herinnering_2_op ? 2 : null;
+  if (!stap) return null;
+  // Reminder 2: seven days after the DM, and never sooner than four days after reminder 1.
+  const vanaf = stap === 1
+    ? Date.parse(d.dm_verstuurd_op) + 3 * 864e5
+    : Math.max(Date.parse(d.dm_verstuurd_op) + 7 * 864e5, Date.parse(d.herinnering_1_op!) + 4 * 864e5);
+  return { stap, dag: dagWaarde(fmt(new Date(vanaf)))! };
+}
+
+// The link is in every reminder: the Instagram echo recognises the demo by it (meta-webhook).
+function herinneringTekst(d: LeadDemo, stap: 1 | 2): string {
+  const link = `https://qoreaesthetics.com/demo/${d.token}`;
+  if (d.taal === "fr")
+    return stap === 1
+      ? `Bonjour, un petit message à propos de votre démo : ${link}\n\nAvez-vous déjà eu le temps de la tester ? Astuce : posez-lui la question que vous recevez le plus souvent, par exemple sur les tarifs ou une première consultation. Vous verrez tout de suite comment elle répondrait à 22h.\n\nLeno`
+      : `Dernier petit message de ma part à ce sujet. Votre démo est toujours prête : ${link}\n\nVous préférez que je vous la montre en 15 minutes, adaptée à votre clinique ? Choisissez un moment ici : ${AGENDA}\n\nSinon, je ne vous dérange plus.\nLeno`;
+  if (d.taal === "en")
+    return stap === 1
+      ? `Hi, a short message about your demo: ${link}\n\nHave you had a moment to test it? Tip: ask it the question you get most often, for example about prices or a first consultation. You will see right away how it would answer at 10 pm.\n\nLeno`
+      : `Last message from me about this. Your demo is still ready: ${link}\n\nWould you rather have me show it in 15 minutes, tailored to your clinic? Pick a moment here: ${AGENDA}\n\nOtherwise I will leave you be.\nLeno`;
+  return stap === 1
+    ? `Hoi, even een kort berichtje over jullie demo: ${link}\n\nHad je al tijd om hem te testen? Tip: stel hem de vraag die jullie het vaakst krijgen, bijvoorbeeld over prijzen of een eerste consult. Zo zie je meteen hoe hij om 22u zou antwoorden.\n\nLeno`
+    : `Laatste berichtje van mij hierover. Jullie demo staat nog klaar: ${link}\n\nLiever dat ik hem in 15 minuten toon, toegespitst op jullie kliniek? Kies hier een moment dat past: ${AGENDA}\n\nAnders laat ik jullie met rust.\nLeno`;
+}
 
 // The message Leno sends with an active demo: the DM written for it, with the real link filled in.
 // Without one, the same standard text as the Demo's tab.
@@ -139,7 +172,22 @@ function bouwLijst(leads: Lead[], demos: Map<string, LeadDemo>) {
 
   for (const l of leads) {
     const status = l.status;
-    if (BUITEN_DAGLIJST.has(status) || FASE_BUITEN_DAGLIJST.has(l.fase)) continue;
+    if (FASE_BUITEN_DAGLIJST.has(l.fase)) continue;
+    // A demo DM without any use: its reminders go in "Opvolgen", stap 1 or 2 like a cold follow-up.
+    if (status === "Demo verstuurd") {
+      const d = demos.get(l.id);
+      const h = demoHerinnering(d);
+      if (!d || !h || h.dag > mt) continue;
+      const item = {
+        id: l.id, rij: l.sheet_rij, naam: l.kliniek, stad: l.stad ?? "", instagram: l.instagram ?? "", email: l.email ?? "",
+        kanaal: l.contact_via ?? "", status, datum: toonDatum(new Date(h.dag).toISOString().slice(0, 10)),
+        volgendeStap: `Demo-herinnering ${h.stap}: de demo is nog niet gebruikt`, versie: l.versie ?? "", vraagknop: "",
+        demo: null, bericht: herinneringTekst(d, h.stap), stap: h.stap,
+      };
+      (h.dag <= vt ? nu : straks).opvolgen.push(item);
+      continue;
+    }
+    if (BUITEN_DAGLIJST.has(status)) continue;
     const datum = isoWaarde(l.opvolgen_op);
     const aa = l.vraagknop ?? "";
     const opwarmen = l.opwarmen ?? "";
@@ -300,7 +348,7 @@ async function voerActiesUit(acties: Actie[]): Promise<number> {
   const ids = [...new Set((Array.isArray(acties) ? acties : []).map((a) => a?.id).filter((id) => typeof id === "string" && UUID.test(id)))];
   const [rijen, demoRijen] = ids.length
     ? await Promise.all([
-        lees(`leads?select=id,contact_via,bericht,vraagknop&id=in.(${ids.join(",")})`) as Promise<LeadNu[]>,
+        lees(`leads?select=id,contact_via,bericht,vraagknop,status&id=in.(${ids.join(",")})`) as Promise<(LeadNu & { status: string })[]>,
         lees(`demo_aanvragen?select=id,lead_id,status,verstuurd_op,dm_verstuurd_op&lead_id=in.(${ids.join(",")})&order=created_at.asc`) as Promise<
           { id: string; lead_id: string; status: string; verstuurd_op: string | null; dm_verstuurd_op: string | null }[]
         >,
@@ -313,6 +361,15 @@ async function voerActiesUit(acties: Actie[]): Promise<number> {
     const d = demoVan.get(id);
     if (d && !d.verstuurd_op) throw new ActieFout("Er staat een demo klaar voor deze kliniek. Kijk hem eerst na en activeer hem.");
   }
+  // "Opvolging verstuurd" on a demo reminder only marks the reminder; the clinic stays in the demo flow.
+  const demoLead = new Set(rijen.filter((r) => r.status === "Demo verstuurd").map((r) => r.id));
+  const herinnering = acties.filter((a) => demoLead.has(a?.id) && (a.actie === "opvolging1" || a.actie === "opvolging2"));
+  for (const a of herinnering) {
+    const d = demoVan.get(a.id);
+    if (d) await schrijf(`demo_aanvragen?id=eq.${d.id}`, "PATCH", { [a.actie === "opvolging1" ? "herinnering_1_op" : "herinnering_2_op"]: new Date().toISOString() });
+  }
+  acties = acties.filter((a) => !herinnering.includes(a));
+  if (!acties.length) return herinnering.length;
   const patches = vertaalActies(acties, new Map(rijen.map((r) => [r.id, r])));
   for (const [id, patch] of patches) {
     // The DM with an active demo is the demo message: the clinic moves to the demo follow-up, not the cold one.
@@ -326,7 +383,7 @@ async function voerActiesUit(acties: Actie[]): Promise<number> {
     if (verstuurd.has(id) && d?.verstuurd_op && !d.dm_verstuurd_op)
       await schrijf(`demo_aanvragen?id=eq.${d.id}`, "PATCH", { dm_verstuurd_op: new Date().toISOString() });
   }
-  return acties.length;
+  return acties.length + herinnering.length;
 }
 
 // POST {demo: {code, actie}}: the "DM verstuurd" button in the Demo's tab. A trigger in the database fixes the
@@ -338,6 +395,15 @@ async function demoActie(demo: { code?: string; actie?: string }): Promise<void>
   await schrijf(`demo_aanvragen?code=eq.${code}`, "PATCH", {
     dm_verstuurd_op: demo.actie === "dm_verstuurd" ? new Date().toISOString() : null,
   });
+  // The lead follows: status "Demo verstuurd", so its demo reminders show up in "Opvolgen" (process plan P3).
+  if (demo.actie !== "dm_verstuurd") return;
+  const [d] = (await lees(`demo_aanvragen?select=lead_id&code=eq.${code}&limit=1`)) as { lead_id: string | null }[];
+  if (d?.lead_id)
+    await schrijf(
+      `leads?id=eq.${d.lead_id}&status=in.${encodeURIComponent('("Nieuw","Opwarmen","Klaar om te sturen","DM verstuurd","Opgevolgd 1","Opgevolgd 2")')}`,
+      "PATCH",
+      { status: "Demo verstuurd", volgende_stap: "Demo verstuurd: herinneringen verschijnen in Opvolgen" },
+    );
 }
 
 // POST {vasteKost: {id?, naam, categorie, bedrag, valuta, per, actief}}: Leno adds or edits a fixed cost.
@@ -430,7 +496,7 @@ Deno.serve(async (req) => {
     // many leads there are.
     const kolommen =
       "id,sheet_rij,kliniek,stad,instagram,email,contact_via,status,opvolgen_op,bericht,volgende_stap,versie,opwarmen,reactie_opwarmen,opvolging_1,opvolging_2,vraagknop,fase";
-    const dagStatussen = encodeURIComponent('("Opwarmen","Klaar om te sturen","DM verstuurd","Opgevolgd 1","Nakijken")');
+    const dagStatussen = encodeURIComponent('("Opwarmen","Klaar om te sturen","DM verstuurd","Opgevolgd 1","Nakijken","Demo verstuurd")');
     const maandStart = new Date();
     maandStart.setUTCDate(1);
     maandStart.setUTCHours(0, 0, 0, 0);
@@ -445,7 +511,7 @@ Deno.serve(async (req) => {
       lees("leads?select=id,sheet_rij,kliniek,stad,instagram,email,status,fase,fase_sinds&fase=in.(REPLIED,DEMO_USED,MEETING_BOOKED,MEETING_HELD)&order=fase_sinds.desc&limit=50").catch(() => []),
       lees("vaste_kosten?select=id,naam,categorie,bedrag,valuta,per,actief,notitie&order=id.asc").catch(() => []),
       // Demos linked to a lead (oldest first, so the newest one per lead wins below).
-      leesAlles("demo_aanvragen?select=lead_id,status,code,token,nakijk_token,verstuurd_op,dm_tekst,dm_verstuurd_op,taal&lead_id=not.is.null&order=created_at.asc").catch(() => []),
+      leesAlles("demo_aanvragen?select=lead_id,status,code,token,nakijk_token,verstuurd_op,dm_tekst,dm_verstuurd_op,taal,berichten_gebruikt,herinnering_1_op,herinnering_2_op&lead_id=not.is.null&order=created_at.asc").catch(() => []),
     ]);
     const demoPerLead = new Map((leadDemos as LeadDemo[]).map((d) => [d.lead_id, d]));
     return json({

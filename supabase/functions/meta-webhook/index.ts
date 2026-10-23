@@ -5,6 +5,11 @@
 // META_APP_SECRET is the Facebook app secret (Facebook Page and WhatsApp webhooks); META_IG_APP_SECRET, if set, is the
 // Instagram app secret (Instagram Login webhooks). While STRENG is not "1" a bad signature is only logged and the
 // message still goes through, so switching Meta to this function can never silence the chatbot.
+//
+// Since 23/10 messages between @qoreaesthetics and a lead (outreach) are handled in leads.ts and not passed on: they
+// update the lead instead of reaching the AI. POST ?controle=vraagknop is the 15-minute question-button check.
+
+import { leadSignaal, vraagknopControle } from "./leads.ts";
 
 const N8N_URL = "https://qorelabs.app.n8n.cloud/webhook/qore-instagram-test";
 const GEHEIMEN = [Deno.env.get("META_APP_SECRET"), Deno.env.get("META_IG_APP_SECRET")]
@@ -52,7 +57,17 @@ Deno.serve(async (req) => {
   }
   if (req.method !== "POST") return new Response("Alleen GET en POST", { status: 405 });
 
-  const ruw = new Uint8Array(await req.arrayBuffer());
+  // pg_cron, no key needed: it only applies what the clock already decides.
+  if (url.searchParams.get("controle") === "vraagknop") {
+    try {
+      return Response.json({ bijgewerkt: await vraagknopControle() });
+    } catch (e) {
+      console.error("vraagknop-controle", (e as Error).message);
+      return Response.json({ fout: (e as Error).message }, { status: 500 });
+    }
+  }
+
+  let ruw = new Uint8Array(await req.arrayBuffer());
   const kop = req.headers.get("x-hub-signature-256") ?? "";
   const door = GEHEIMEN.length ? await ondertekendDoor(ruw, kop) : null;
   let soort = "";
@@ -68,6 +83,36 @@ Deno.serve(async (req) => {
   }));
 
   if (!door && STRENG) return new Response("Handtekening klopt niet", { status: 401 });
+
+  // Outreach messages with a lead are handled here; only the rest goes to n8n. If this fails, everything goes to n8n
+  // as before, so a customer message is never lost.
+  if (door && soort === "instagram") {
+    try {
+      const body = JSON.parse(new TextDecoder().decode(ruw));
+      let weg = 0;
+      for (const entry of body.entry ?? []) {
+        const over = [];
+        for (const ev of entry.messaging ?? []) {
+          let afgehandeld = false;
+          try {
+            afgehandeld = await leadSignaal(String(entry.id ?? ""), ev);
+          } catch (e) {
+            console.error("lead-signaal", (e as Error).message);
+          }
+          if (afgehandeld) weg++;
+          else over.push(ev);
+        }
+        if (entry.messaging) entry.messaging = over;
+      }
+      if (weg) {
+        body.entry = (body.entry ?? []).filter((e: { messaging?: unknown[]; changes?: unknown[] }) => (e.messaging?.length ?? 0) > 0 || e.changes);
+        if (!body.entry.length) return new Response("EVENT_RECEIVED", { status: 200 });
+        ruw = new TextEncoder().encode(JSON.stringify(body));
+      }
+    } catch (e) {
+      console.error("lead-signaal", (e as Error).message);
+    }
+  }
 
   // 200 to Meta once n8n accepted the message; n8n confirms receipt straight away and works on it after.
   try {
