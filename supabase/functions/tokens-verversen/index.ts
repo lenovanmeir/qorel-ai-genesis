@@ -7,6 +7,7 @@
 //    no key. {"proef": true} reports what it would do without calling Meta or Telegram.
 // 2. {"actie": "opslaan", "kanaal_id", "token"} with header x-beheercode — stores a pasted token after checking at
 //    Meta that it belongs to that channel's account. The token never leaves this function in a response.
+//    {"actie": "lijst"} with the same header lists the channels and their token state for /beheer.
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -79,13 +80,15 @@ async function igVerversen(token: string): Promise<{ token: string; verlooptOp: 
   return { token: j.access_token, verlooptOp: new Date(Date.now() + seconden * 1000).toISOString() };
 }
 
-// Which account a token belongs to, so a token pasted on the wrong channel is refused.
-async function accountVanToken(kanaal: string, token: string): Promise<string> {
+// Which account a token belongs to, so a token pasted on the wrong channel is refused. A WhatsApp system user token
+// belongs to a person, not to the number, so there we only check that it can read the number's account id.
+async function accountVanToken(kanaal: string, accountId: string | null, token: string): Promise<string> {
   const url = kanaal === "instagram"
     ? new URL("https://graph.instagram.com/v23.0/me?fields=user_id,username")
+    : kanaal === "whatsapp"
+    ? new URL(`https://graph.facebook.com/v21.0/${encodeURIComponent(accountId ?? "")}?fields=id`)
     : new URL("https://graph.facebook.com/v21.0/me?fields=id,name");
-  url.searchParams.set("access_token", token);
-  const antwoord = await fetch(url);
+  const antwoord = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
   if (!antwoord.ok) throw new Error(await metaFout(antwoord));
   const j = await antwoord.json();
   return String(kanaal === "instagram" ? j.user_id ?? j.id : j.id);
@@ -163,7 +166,7 @@ async function opslaan(kanaalId: string, token: string) {
   const k = rijen[0];
   if (!k) return { status: 404, body: { ok: false, fout: "kanaal bestaat niet" } };
 
-  const account = await accountVanToken(k.channel, token.trim());
+  const account = await accountVanToken(k.channel, k.account_id, token.trim());
   if (k.account_id && account !== k.account_id) {
     return { status: 400, body: { ok: false, fout: `token hoort bij account ${account}, niet bij ${k.account_id}` } };
   }
@@ -184,28 +187,54 @@ async function opslaan(kanaalId: string, token: string) {
   return { status: 200, body: { ok: true, kanaal: naamVan(k), verloopt_op: verlooptOp } };
 }
 
+// /beheer calls "lijst" and "opslaan" from the browser.
+const BEHEER_ORIGINS = new Set([
+  "https://qoreaesthetics.com",
+  "https://www.qoreaesthetics.com",
+  "http://localhost:8080",
+  "http://aesthetics.localhost:8080",
+]);
+
 Deno.serve(async (req) => {
-  if (req.method !== "POST") return new Response("Alleen POST", { status: 405 });
+  const origin = req.headers.get("origin");
+  const cors = {
+    "Access-Control-Allow-Origin": origin && BEHEER_ORIGINS.has(origin) ? origin : "https://qoreaesthetics.com",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, x-beheercode",
+    Vary: "Origin",
+  };
+  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
+  if (req.method !== "POST") return new Response("Alleen POST", { status: 405, headers: cors });
+  const json = (data: unknown, status = 200) => Response.json(data, { status, headers: cors });
   let body: Record<string, unknown> = {};
   try {
     body = await req.json();
   } catch { /* empty body = night run */ }
 
   try {
-    if (body.actie === "opslaan") {
+    if (body.actie === "opslaan" || body.actie === "lijst") {
       if (!BEHEERCODE || (req.headers.get("x-beheercode") ?? "").trim() !== BEHEERCODE) {
-        return Response.json({ ok: false, fout: "geen toegang" }, { status: 403 });
+        return json({ ok: false, fout: "geen toegang" }, 403);
       }
+    }
+    // The channels with their token state for /beheer; never the token itself.
+    if (body.actie === "lijst") {
+      const kanalen = await db<unknown[]>(
+        "clinic_channels?select=id,channel,account_id,account_label,is_enabled,token_status,token_verloopt_op,token_ververst_op,token_fout,clinics(name)&order=channel,account_label",
+      );
+      return json({ ok: true, kanalen });
+    }
+    if (body.actie === "opslaan") {
       const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       if (typeof body.kanaal_id !== "string" || !uuid.test(body.kanaal_id) || typeof body.token !== "string" || !body.token.trim()) {
-        return Response.json({ ok: false, fout: "kanaal_id en token zijn verplicht" }, { status: 400 });
+        return json({ ok: false, fout: "kanaal_id en token zijn verplicht" }, 400);
       }
       const { status, body: uit } = await opslaan(body.kanaal_id, body.token);
-      return Response.json(uit, { status });
+      return json(uit, status);
     }
-    return Response.json({ ok: true, ...(await nacht(body.proef === true)) });
+    return json({ ok: true, ...(await nacht(body.proef === true)) });
   } catch (e) {
     console.error("tokens-verversen", (e as Error).message);
-    return Response.json({ ok: false, fout: (e as Error).message }, { status: 500 });
+    return json({ ok: false, fout: (e as Error).message }, 500);
   }
 });
