@@ -21,7 +21,50 @@ type Klant = {
   kanalen: string[];
   fout: string | null;
   aangemaakt_op: string;
+  betaalstatus: Betaalstatus | null;
+  opzegging_op: string | null;
+  stopt_op: string | null;
+  betalingen: Betaling[];
 };
+
+type Betaalstatus = "wacht_op_betaling" | "actief" | "betaalprobleem" | "gestopt" | "opgezegd";
+
+type Betaling = {
+  id: string;
+  soort: "opstart" | "abonnement";
+  bron: "stripe" | "wise" | "handmatig";
+  status: "betaald" | "mislukt" | "open";
+  bedrag_cent: number;
+  valuta: string;
+  periode_van: string | null;
+  datum: string;
+};
+
+// What the chatbot does for this client right now. The Edge Function "kliniek-login" enforces it.
+const STATUS: Record<Betaalstatus, { tekst: string; kleur: string }> = {
+  wacht_op_betaling: {
+    tekst: "⏳ Wacht op bank (SEPA): chatbot uit",
+    kleur: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
+  },
+  actief: {
+    tekst: "✓ Betaalt: chatbot aan",
+    kleur: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
+  },
+  betaalprobleem: {
+    tekst: "⚠️ Betaling mislukt",
+    kleur: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
+  },
+  gestopt: { tekst: "⛔ Niet betaald: chatbot uit", kleur: "bg-destructive/15 text-destructive" },
+  opgezegd: { tekst: "⛔ Opgezegd: chatbot uit", kleur: "bg-destructive/15 text-destructive" },
+};
+
+const euro = (cent: number, valuta: string) =>
+  new Intl.NumberFormat("nl-BE", { style: "currency", currency: valuta.toUpperCase() }).format(
+    cent / 100,
+  );
+
+const maand = (iso: string) =>
+  new Date(iso).toLocaleDateString("nl-BE", { month: "long", year: "numeric" });
 
 type Voorbeeld = { aan: string | null; onderwerp: string; tekst: string };
 
@@ -39,7 +82,10 @@ const datum = (iso: string) =>
 function stappen(k: Klant) {
   const intakeKlaar = ["ingevuld", "gebouwd", "live"].includes(k.intake_status ?? "");
   return [
-    { klaar: true, tekst: k.bron === "stripe" ? "Abonnement betaald" : "Toegevoegd" },
+    {
+      klaar: k.betaalstatus !== "wacht_op_betaling",
+      tekst: k.bron === "stripe" ? "Abonnement betaald" : "Toegevoegd",
+    },
     { klaar: !!k.welkomstmail_op, tekst: "Welkomstmail met vragenlijst" },
     { klaar: !!k.opstart_betaald_op, tekst: "Opstart betaald (Wise)" },
     { klaar: intakeKlaar, tekst: "Vragenlijst ingevuld" },
@@ -282,6 +328,68 @@ export function KlantenBeheer({
               </p>
             </div>
             {k.fout && <p className="mt-2 text-sm text-destructive">⚠️ {k.fout}</p>}
+
+            {k.betaalstatus && (
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+                <span className={`rounded-full px-3 py-1 text-xs ${STATUS[k.betaalstatus].kleur}`}>
+                  {STATUS[k.betaalstatus].tekst}
+                </span>
+                {k.stopt_op && (
+                  <span className="text-muted-foreground">
+                    Chatbot stopt op {datum(k.stopt_op)} als er niet betaald wordt
+                  </span>
+                )}
+                {k.opzegging_op && k.betaalstatus !== "opgezegd" && (
+                  <span className="text-muted-foreground">
+                    Opgezegd: stopt op {datum(k.opzegging_op)}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {(k.betalingen.length > 0 || k.opstart_betaald_op) && (
+              <div className="mt-3 rounded-xl border border-border bg-card p-3">
+                <p className="text-xs font-medium text-muted-foreground">Betalingen</p>
+                <ul className="mt-2 flex flex-col gap-1 text-sm">
+                  {k.opstart_betaald_op && (
+                    <li className="flex justify-between gap-3">
+                      <span>Opstartkost (Wise)</span>
+                      <span className="text-emerald-600 dark:text-emerald-400">
+                        ✓ betaald {datum(k.opstart_betaald_op)}
+                      </span>
+                    </li>
+                  )}
+                  {k.betalingen.map((b) => (
+                    <li key={b.id} className="flex justify-between gap-3">
+                      <span>
+                        {b.soort === "opstart"
+                          ? "Opstartkost"
+                          : `Abonnement ${maand(b.periode_van ?? b.datum)}`}{" "}
+                        <span className="text-muted-foreground">
+                          {euro(b.bedrag_cent, b.valuta)}
+                        </span>
+                      </span>
+                      <span
+                        className={
+                          b.status === "betaald"
+                            ? "text-emerald-600 dark:text-emerald-400"
+                            : b.status === "mislukt"
+                              ? "text-destructive"
+                              : "text-muted-foreground"
+                        }
+                      >
+                        {b.status === "betaald"
+                          ? "✓ betaald"
+                          : b.status === "mislukt"
+                            ? "✗ mislukt"
+                            : "open"}{" "}
+                        {datum(b.datum)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             <ol className="mt-3 flex flex-wrap gap-1.5">
               {stappen(k).map((s) => (

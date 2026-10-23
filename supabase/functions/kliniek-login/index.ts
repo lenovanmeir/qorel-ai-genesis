@@ -6,6 +6,10 @@
 // POST {clinic_id}                  website chat: the clinic is known
 // POST {kanaal, account_id}         Instagram/Facebook/WhatsApp: the clinic follows from clinic_channels
 // Header x-beheercode (n8n credential "Qore beheercode (header)").
+//
+// A client that does not pay gets no token, so the chatbot stops answering for that clinic (table onboardingen,
+// betaalstatus, filled by the Edge Function "onboarding" from Stripe). Clinics without an onboarding row (our own,
+// the demo) and clients added by hand have no betaalstatus and always get one.
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -16,6 +20,17 @@ const BEHEERCODE = Deno.env.get("BEHEERCODE") ?? "";
 // is then missing, so the workflow stops without answering.
 const DEMO_KLINIEK = "d3110000-0000-4000-a000-000000000001";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Days a client keeps the chatbot after a failed monthly payment. Keep in sync with the "onboarding" function.
+const GRATIE_DAGEN = 5;
+
+// Checked here too, not only by the hourly job, so the chatbot stops on time even when that job runs late.
+function geblokkeerd(o: { betaalstatus: string | null; betaalprobleem_sinds: string | null } | undefined) {
+  if (!o?.betaalstatus) return false;
+  if (["wacht_op_betaling", "gestopt", "opgezegd"].includes(o.betaalstatus)) return true;
+  return o.betaalstatus === "betaalprobleem" && !!o.betaalprobleem_sinds &&
+    Date.now() - Date.parse(o.betaalprobleem_sinds) > GRATIE_DAGEN * 86_400_000;
+}
 
 function gelijk(a: string, b: string): boolean {
   let verschil = a.length ^ b.length;
@@ -73,6 +88,14 @@ Deno.serve(async (req) => {
       clinicId = rij?.clinic_id ?? DEMO_KLINIEK;
     }
     if (!UUID.test(clinicId)) return json({ fout: "Ongeldige kliniek" }, 400);
+
+    const [betaling] = await lees<{ betaalstatus: string | null; betaalprobleem_sinds: string | null }>(
+      `onboardingen?select=betaalstatus,betaalprobleem_sinds&clinic_id=eq.${clinicId}&order=aangemaakt_op.desc&limit=1`,
+    );
+    if (geblokkeerd(betaling)) {
+      tokens.delete(clinicId);
+      return json({ fout: "Deze kliniek is gepauzeerd: er is niet betaald", clinic_id: clinicId, gepauzeerd: true }, 402);
+    }
 
     const bewaard = tokens.get(clinicId);
     if (bewaard && bewaard.tot - Date.now() > 5 * 60_000) return json({ access_token: bewaard.token, clinic_id: clinicId });

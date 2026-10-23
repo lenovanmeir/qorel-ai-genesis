@@ -5,7 +5,15 @@
 //   an intake pre-filled from its website, and a Telegram message to Leno.
 // The welcome mail with the intake link goes out only when Leno presses the button on /beheer, after a look.
 //
-// POST with stripe-signature          Stripe webhook (checkout.session.completed), checked with STRIPE_WEBHOOK_SECRET
+// POST with stripe-signature          Stripe webhook, checked with STRIPE_WEBHOOK_SECRET:
+//   checkout.session.completed               new client (card: paid at once; SEPA: waits for the bank)
+//   checkout.session.async_payment_succeeded the bank confirmed the first SEPA payment
+//   checkout.session.async_payment_failed    the first SEPA payment failed
+//   invoice.paid / invoice.payment_failed    every monthly payment, written to table betalingen
+//   customer.subscription.updated / deleted  the client cancels, or the subscription ended
+//   The chatbot only works while betaalstatus allows it (checked by the Edge Function "kliniek-login").
+// POST {controle: true}               the hourly database job: stops clients that are 5 days late (no key needed,
+//                                     it only acts on what the database already says)
 // With x-beheercode (the /beheer page):
 // GET                                 the onboardings with their checklist
 // POST {handmatig: {...}}             add a client by hand (setup fee by invoice, no Stripe yet, or a test)
@@ -49,7 +57,16 @@ type Onboarding = {
   welkomstmail_op: string | null;
   fout: string | null;
   aangemaakt_op: string;
+  stripe_abonnement: string | null;
+  betaalstatus: Betaalstatus | null;
+  betaalprobleem_sinds: string | null;
+  opzegging_op: string | null;
 };
+
+type Betaalstatus = "wacht_op_betaling" | "actief" | "betaalprobleem" | "gestopt" | "opgezegd";
+
+// Days a client keeps the chatbot after a failed monthly payment (Leno, 22/10). Keep in sync with kliniek-login.
+const GRATIE_DAGEN = 5;
 
 async function db<T>(pad: string, init: RequestInit = {}): Promise<T> {
   const antwoord = await fetch(`${SUPABASE_URL}/rest/v1/${pad}`, {
@@ -135,6 +152,8 @@ type StripeSessie = {
   customer?: string | null;
   subscription?: string | null;
   amount_subtotal?: number | null;
+  // "paid" (card), "no_payment_required" (100% discount) or "unpaid" (SEPA: the bank confirms days later).
+  payment_status?: string | null;
   locale?: string | null;
   customer_details?: { email?: string | null; name?: string | null; business_name?: string | null } | null;
   custom_fields?: { key: string; text?: { value?: string | null } | null }[];
@@ -160,7 +179,162 @@ function uitStripe(s: StripeSessie) {
     website: veld("website", "site") || null,
     email: s.customer_details?.email ?? null,
     taal: (["nl", "fr", "en"].includes(taal) ? taal : "nl") as Taal,
+    betaalstatus: (s.payment_status === "unpaid" ? "wacht_op_betaling" : "actief") as Betaalstatus,
   };
+}
+
+type StripeFactuur = {
+  id: string;
+  amount_paid?: number;
+  amount_due?: number;
+  currency?: string;
+  subscription?: string | null;
+  parent?: { subscription_details?: { subscription?: string | null } | null } | null;
+  lines?: { data?: { period?: { start?: number; end?: number } }[] };
+};
+
+type StripeAbonnement = {
+  id: string;
+  cancel_at_period_end?: boolean;
+  cancel_at?: number | null;
+  current_period_end?: number;
+  items?: { data?: { current_period_end?: number }[] };
+};
+
+const ABONNEMENT = /^sub_[A-Za-z0-9]+$/;
+const isoVan = (unix?: number | null) => (unix ? new Date(unix * 1000).toISOString() : null);
+const dag = (iso: string) => new Date(iso).toLocaleDateString("nl-BE", { day: "numeric", month: "long", timeZone: "Europe/Brussels" });
+
+async function klantVanAbonnement(abonnement: string | null | undefined): Promise<Onboarding | null> {
+  if (!abonnement || !ABONNEMENT.test(abonnement)) return null;
+  const [o] = await db<Onboarding[]>(`onboardingen?stripe_abonnement=eq.${abonnement}&select=*&limit=1`);
+  return o ?? null;
+}
+
+const bijwerken = (id: string, velden: Partial<Onboarding>) =>
+  db(`onboardingen?id=eq.${id}`, { method: "PATCH", body: JSON.stringify(velden) });
+
+// One row per Stripe invoice; a failed invoice that is paid later turns into "betaald", never the other way round
+// (Stripe does not promise the order of its events).
+async function betalingBewaren(f: StripeFactuur, status: "betaald" | "mislukt") {
+  const periode = f.lines?.data?.[0]?.period;
+  await db("betalingen?on_conflict=stripe_factuur", {
+    method: "POST",
+    headers: { Prefer: status === "betaald" ? "resolution=merge-duplicates" : "resolution=ignore-duplicates" },
+    body: JSON.stringify({
+      stripe_factuur: f.id,
+      stripe_abonnement: f.parent?.subscription_details?.subscription ?? f.subscription ?? null,
+      soort: "abonnement",
+      bron: "stripe",
+      status,
+      bedrag_cent: (status === "betaald" ? f.amount_paid : f.amount_due) ?? 0,
+      valuta: f.currency ?? "eur",
+      periode_van: isoVan(periode?.start),
+      periode_tot: isoVan(periode?.end),
+      datum: new Date().toISOString(),
+    }),
+  });
+}
+
+async function stripeEvent(event: { type?: string; data?: { object?: unknown } }) {
+  const object = event.data?.object;
+  switch (event.type) {
+    case "checkout.session.completed": {
+      const sessie = object as StripeSessie;
+      if (sessie?.mode !== "subscription") return;
+      await onboarden({ bron: "stripe", ...uitStripe(sessie) });
+      return;
+    }
+    case "checkout.session.async_payment_succeeded":
+    case "checkout.session.async_payment_failed": {
+      const sessie = object as StripeSessie;
+      if (!/^cs_[A-Za-z0-9_]+$/.test(sessie?.id ?? "")) return;
+      const [o] = await db<Onboarding[]>(`onboardingen?stripe_sessie=eq.${sessie.id}&select=*`);
+      if (!o) return;
+      const gelukt = event.type.endsWith("succeeded");
+      if (gelukt && o.betaalstatus === "actief") return; // invoice.paid was first and already said so
+      await bijwerken(o.id, { betaalstatus: gelukt ? "actief" : "gestopt", betaalprobleem_sinds: null });
+      await telegram(
+        gelukt
+          ? `✅ <b>${html(o.kliniek_naam)}</b>: de bank bevestigde de eerste betaling. De chatbot mag werken.`
+          : `⛔ <b>${html(o.kliniek_naam)}</b>: de eerste SEPA-betaling is mislukt. De chatbot blijft uit.\nNeem contact op: ${html(o.email ?? "geen e-mail")}`,
+      );
+      return;
+    }
+    case "invoice.paid": {
+      const factuur = object as StripeFactuur;
+      await betalingBewaren(factuur, "betaald");
+      const o = await klantVanAbonnement(factuur.parent?.subscription_details?.subscription ?? factuur.subscription);
+      if (!o || o.betaalstatus === "actief" || o.betaalstatus === "opgezegd") return;
+      const was = o.betaalstatus;
+      await bijwerken(o.id, { betaalstatus: "actief", betaalprobleem_sinds: null });
+      await telegram(
+        was === "wacht_op_betaling"
+          ? `✅ <b>${html(o.kliniek_naam)}</b>: de bank bevestigde de eerste betaling. De chatbot mag werken.`
+          : `✅ <b>${html(o.kliniek_naam)}</b> heeft alsnog betaald. ${was === "gestopt" ? "De chatbot werkt weer." : "Het betaalprobleem is opgelost."}`,
+      );
+      return;
+    }
+    case "invoice.payment_failed": {
+      const factuur = object as StripeFactuur;
+      await betalingBewaren(factuur, "mislukt");
+      const o = await klantVanAbonnement(factuur.parent?.subscription_details?.subscription ?? factuur.subscription);
+      // Only the first failure starts the 5 days; Stripe's retries that fail again change nothing.
+      if (!o || o.betaalstatus !== "actief") return;
+      const sinds = new Date().toISOString();
+      await bijwerken(o.id, { betaalstatus: "betaalprobleem", betaalprobleem_sinds: sinds });
+      const stop = new Date(Date.parse(sinds) + GRATIE_DAGEN * 86_400_000).toISOString();
+      await telegram(
+        [
+          `⚠️ <b>${html(o.kliniek_naam)}</b>: maandbetaling mislukt (€${((factuur.amount_due ?? 0) / 100).toFixed(2)}).`,
+          "Stripe probeert opnieuw en mailt de klant.",
+          `Is er niet betaald, dan stopt de chatbot op ${dag(stop)}.`,
+          o.email ? `✉️ ${html(o.email)}` : "",
+        ].filter(Boolean).join("\n"),
+      );
+      return;
+    }
+    case "customer.subscription.updated": {
+      const a = object as StripeAbonnement;
+      const o = await klantVanAbonnement(a.id);
+      if (!o) return;
+      const einde = a.cancel_at ?? (a.cancel_at_period_end ? (a.items?.data?.[0]?.current_period_end ?? a.current_period_end) : null);
+      if (einde && !o.opzegging_op) {
+        const op = isoVan(einde)!;
+        await bijwerken(o.id, { opzegging_op: op });
+        await telegram(`📭 <b>${html(o.kliniek_naam)}</b> zegt op. Het abonnement en de chatbot stoppen op ${dag(op)}.`);
+      } else if (!einde && o.opzegging_op && o.betaalstatus !== "opgezegd") {
+        await bijwerken(o.id, { opzegging_op: null });
+        await telegram(`↩️ <b>${html(o.kliniek_naam)}</b> heeft de opzegging ingetrokken. Het abonnement loopt door.`);
+      }
+      return;
+    }
+    case "customer.subscription.deleted": {
+      const a = object as StripeAbonnement;
+      const o = await klantVanAbonnement(a.id);
+      if (!o || o.betaalstatus === "opgezegd") return;
+      await bijwerken(o.id, { betaalstatus: "opgezegd", opzegging_op: o.opzegging_op ?? new Date().toISOString() });
+      await telegram(`⛔ <b>${html(o.kliniek_naam)}</b>: het abonnement is beëindigd. De chatbot staat uit.`);
+      return;
+    }
+  }
+}
+
+// Clients whose monthly payment failed more than GRATIE_DAGEN ago. The PATCH only returns the rows it changed,
+// so each client gets exactly one message even when the job runs twice.
+async function controle() {
+  const grens = new Date(Date.now() - GRATIE_DAGEN * 86_400_000).toISOString();
+  const gestopt = await db<Onboarding[]>(`onboardingen?betaalstatus=eq.betaalprobleem&betaalprobleem_sinds=lt.${grens}`, {
+    method: "PATCH",
+    headers: { Prefer: "return=representation" },
+    body: JSON.stringify({ betaalstatus: "gestopt" }),
+  });
+  for (const o of gestopt) {
+    await telegram(
+      `⛔ <b>${html(o.kliniek_naam)}</b>: na ${GRATIE_DAGEN} dagen nog niet betaald. De chatbot staat uit tot er betaald is.${o.email ? `\n✉️ ${html(o.email)}` : ""}`,
+    );
+  }
+  return { gestopt: gestopt.length };
 }
 
 // ---------- the onboarding itself ----------
@@ -176,6 +350,7 @@ type Nieuw = {
   website: string | null;
   email: string | null;
   taal: Taal;
+  betaalstatus?: Betaalstatus;
 };
 
 // Creates the onboarding row first (Stripe may send the same event twice: the unique session stops the second),
@@ -250,6 +425,7 @@ async function onboarden(n: Nieuw): Promise<Onboarding | null> {
       `🎉 <b>Nieuwe klant: ${html(n.kliniek_naam)}</b>`,
       [n.pakket, n.contract && (n.contract === "jaar" ? "jaarcontract" : "maandelijks")].filter(Boolean).join(" · ") || (n.bron === "handmatig" ? "handmatig toegevoegd" : ""),
       n.email ? `✉️ ${html(n.email)}` : "",
+      n.betaalstatus === "wacht_op_betaling" ? "⏳ Betaald met SEPA: de chatbot werkt pas als de bank bevestigt (enkele werkdagen)." : "",
       nu?.fout ? `⚠️ ${html(nu.fout)}` : "✅ Kliniek, login, widget en intake staan klaar.",
       `Kijk de intake na en verstuur de welkomstmail: ${SITE}/beheer`,
     ].filter(Boolean).join("\n"),
@@ -358,13 +534,30 @@ async function lijst() {
   const rijen = await db<Onboarding[]>("onboardingen?select=*&order=aangemaakt_op.desc&limit=50");
   const codes = rijen.map((r) => r.intake_code).filter(Boolean);
   const ids = rijen.map((r) => r.clinic_id).filter(Boolean);
-  const [intakes, widgets, kanalen] = await Promise.all([
+  const abonnementen = rijen.map((r) => r.stripe_abonnement).filter((a): a is string => !!a && ABONNEMENT.test(a));
+  const filters = [
+    abonnementen.length ? `stripe_abonnement.in.(${abonnementen.join(",")})` : "",
+    rijen.length ? `onboarding_id.in.(${rijen.map((r) => r.id).join(",")})` : "",
+  ].filter(Boolean);
+  const [intakes, widgets, kanalen, betalingen] = await Promise.all([
     codes.length ? db<{ code: string; status: string }[]>(`intakes?select=code,status&code=in.(${codes.join(",")})`).catch(() => []) : [],
     ids.length ? db<{ clinic_id: string; is_actief: boolean }[]>(`widget_instellingen?select=clinic_id,is_actief&clinic_id=in.(${ids.join(",")})`) : [],
     ids.length ? db<{ clinic_id: string; channel: string; is_enabled: boolean }[]>(`clinic_channels?select=clinic_id,channel,is_enabled&clinic_id=in.(${ids.join(",")})`) : [],
+    filters.length
+      ? db<{ stripe_abonnement: string | null; onboarding_id: string | null }[]>(
+          `betalingen?select=*&or=(${filters.join(",")})&order=datum.desc&limit=500`,
+        )
+      : [],
   ]);
   return rijen.map((r) => ({
     ...r,
+    betalingen: betalingen.filter(
+      (b) => b.onboarding_id === r.id || (!!r.stripe_abonnement && b.stripe_abonnement === r.stripe_abonnement),
+    ),
+    // The day the chatbot stops when the failed payment stays unpaid.
+    stopt_op: r.betaalstatus === "betaalprobleem" && r.betaalprobleem_sinds
+      ? new Date(Date.parse(r.betaalprobleem_sinds) + GRATIE_DAGEN * 86_400_000).toISOString()
+      : null,
     intake_status: intakes.find((i) => i.code === r.intake_code)?.status ?? null,
     widget_aan: widgets.find((w) => w.clinic_id === r.clinic_id)?.is_actief ?? null,
     kanalen: kanalen.filter((k) => k.clinic_id === r.clinic_id && k.is_enabled).map((k) => k.channel),
@@ -393,19 +586,25 @@ Deno.serve(async (req) => {
       return json({ fout: "Handtekening klopt niet" }, 400);
     }
     const event = JSON.parse(ruw);
-    if (event?.type !== "checkout.session.completed") return json({ genegeerd: event?.type });
-    const sessie = event.data?.object as StripeSessie;
-    if (sessie?.mode !== "subscription") return json({ genegeerd: "geen abonnement" });
     // Stripe wants an answer within seconds; preparing the intake takes about a minute.
     // @ts-ignore EdgeRuntime exists in Supabase Edge Functions
-    EdgeRuntime.waitUntil(onboarden({ bron: "stripe", ...uitStripe(sessie) }).catch((e) => console.error(e)));
-    return json({ ontvangen: true });
+    EdgeRuntime.waitUntil(stripeEvent(event).catch((e) => console.error(event?.type, e)));
+    return json({ ontvangen: event?.type ?? null });
+  }
+
+  const body = req.method === "POST" ? await req.json().catch(() => ({})) : {};
+  if (body?.controle === true) {
+    try {
+      return json(await controle());
+    } catch (e) {
+      console.error("controle", e);
+      return json({ fout: "controle mislukt" }, 500);
+    }
   }
 
   if (!BEHEERCODE || !gelijk(req.headers.get("x-beheercode") ?? "", BEHEERCODE)) return json({ fout: "Beheercode klopt niet" }, 403);
   try {
     if (req.method === "GET") return json({ klanten: await lijst() });
-    const body = await req.json().catch(() => ({}));
 
     if (body?.handmatig) {
       const h = body.handmatig;
