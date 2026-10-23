@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { TALEN, deFr, isTaal, type Taal } from "@/lib/intake-teksten";
 import { KlantenBeheer } from "@/components/beheer/KlantenBeheer";
 import { WidgetBeheer } from "@/components/beheer/WidgetBeheer";
+import { KanaalTokens } from "@/components/beheer/KanaalTokens";
 
 export const Route = createFileRoute("/beheer")({
   head: () => ({
@@ -720,6 +721,7 @@ function BeheerPagina() {
       </div>
 
       <WidgetBeheer sleutel={sleutel} />
+      <KanaalTokens sleutel={sleutel} />
     </main>
   );
 }
